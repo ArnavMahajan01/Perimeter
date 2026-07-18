@@ -3,10 +3,10 @@
 import json
 import shutil
 import time
-from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-CONFIG_PATH = ROOT / "config.json"
+from .paths import STATE
+
+CONFIG_PATH = STATE / "config.json"
 
 DEFAULT_CONFIG = {
     "version": 3,
@@ -22,17 +22,28 @@ DEFAULT_CONFIG = {
     },
     # Holo topology: rear zones are on the display side, front on the
     # trackpad side, one pair each side of the laptop.
+    #
+    # "layout" is a purely visual rectangle (fractions of the desk-map
+    # canvas, 0..1) the user can drag/resize in the UI. It has no bearing
+    # on tap detection, which is entirely audio-classification based —
+    # it's just how the zone is drawn on the map.
     "zones": [
         {"id": "lr", "name": "Left Rear", "enabled": True,
-         "action": {"type": "visual", "target": ""}, "sensitivity": 60},
+         "action": {"type": "visual", "target": ""}, "sensitivity": 60,
+         "layout": {"x": 0.0, "y": 0.0, "w": 0.34, "h": 0.46}},
         {"id": "rr", "name": "Right Rear", "enabled": True,
-         "action": {"type": "visual", "target": ""}, "sensitivity": 60},
+         "action": {"type": "visual", "target": ""}, "sensitivity": 60,
+         "layout": {"x": 0.66, "y": 0.0, "w": 0.34, "h": 0.46}},
         {"id": "lf", "name": "Left Front", "enabled": True,
-         "action": {"type": "visual", "target": ""}, "sensitivity": 60},
+         "action": {"type": "visual", "target": ""}, "sensitivity": 60,
+         "layout": {"x": 0.0, "y": 0.54, "w": 0.34, "h": 0.46}},
         {"id": "rf", "name": "Right Front", "enabled": True,
-         "action": {"type": "visual", "target": ""}, "sensitivity": 60},
+         "action": {"type": "visual", "target": ""}, "sensitivity": 60,
+         "layout": {"x": 0.66, "y": 0.54, "w": 0.34, "h": 0.46}},
     ],
 }
+
+DEFAULT_LAYOUT = {z["id"]: z["layout"] for z in DEFAULT_CONFIG["zones"]}
 
 _REQUIRED_KEYS = {"version", "confidence_threshold", "onset", "zones"}
 _ZONE_KEYS = {"id", "name", "enabled", "action", "sensitivity"}
@@ -76,7 +87,26 @@ def get_zone(cfg: dict, zone_id: str):
     return None
 
 
+_DEFAULT_AREA = 0.34 * 0.46  # default zone tile area on the map
+
+
 def zone_threshold(cfg: dict, zone: dict) -> float:
-    """sensitivity 0-100 -> confidence threshold (100 -> 0.60, 0 -> 0.95)."""
+    """sensitivity 0-100 -> confidence threshold (100 -> 0.60, 0 -> 0.95).
+
+    The drawn zone size also feeds in: growing a zone on the desk map
+    lowers its confidence threshold (accepts taps that match the zone
+    less exactly — e.g. farther from where you calibrated), shrinking it
+    raises the bar. The mic can't sense geometry directly, so this is
+    the honest physical knob zone area can drive.
+    """
     sens = zone.get("sensitivity", 50)
+    lay = get_layout(zone)
+    area_ratio = (lay["w"] * lay["h"]) / _DEFAULT_AREA
+    sens = max(0.0, min(100.0, sens + (area_ratio - 1.0) * 30.0))
     return 0.95 - (sens / 100.0) * 0.35
+
+
+def get_layout(zone: dict) -> dict:
+    """Zone map rectangle (fractions 0..1). Falls back to the default
+    position for zones saved before layout existed."""
+    return zone.get("layout") or DEFAULT_LAYOUT.get(zone["id"], {"x": 0, "y": 0, "w": 0.34, "h": 0.46})

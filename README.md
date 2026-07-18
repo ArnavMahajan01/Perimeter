@@ -52,9 +52,17 @@ actions use `xdotool` / `xclip` if installed.
 python3 cli.py app
 ```
 
-The app opens a native window (pywebview + a shadcn-styled dark interface;
-falls back to a basic Tk window if pywebview is missing). Five sections in
-the sidebar:
+The app opens a native window (pywebview). The interface is a React +
+shadcn/ui app in `web/`; a pre-built bundle is loaded from `web/dist`. To
+rebuild the UI after changing anything in `web/src`:
+
+```bash
+cd web && npm install && npm run build
+```
+
+If `web/dist` doesn't exist, the app falls back to the legacy single-file
+interface in `ui/index.html` (and to a basic Tk window if pywebview is
+missing). Five sections in the sidebar:
 
 - **Desk** — the live view. START listening; tapped zones light up and run
   their actions. Zone tiles show the assigned action.
@@ -72,6 +80,30 @@ the sidebar:
   latency; targets are ≥80% accuracy and <200 ms. Saved as JSON + CSV and
   restored on relaunch. Rejected taps count as incorrect.
 - **Diagnostics** — live input level and a rolling classification log.
+
+## Build the standalone app
+
+Package everything into a double-clickable desktop app (no Python or
+terminal needed to run it):
+
+```bash
+cd web && npm run build && cd ..     # 1. build the UI bundle
+.venv/bin/pyinstaller Perimeter.spec # 2. build the app
+```
+
+Output lands in `dist/` — `Perimeter.app` on macOS (drag it to
+/Applications), a `Perimeter/` folder with `Perimeter.exe` on Windows,
+and a `Perimeter/` folder with a `Perimeter` binary on Linux. Build on
+each OS you want to ship for; PyInstaller does not cross-compile.
+
+When packaged, user state moves out of the app into the per-user data
+directory (`~/Library/Application Support/Perimeter` on macOS,
+`%APPDATA%\Perimeter` on Windows, `~/.local/share/perimeter` on Linux),
+so calibrations survive app updates.
+
+Note: the macOS app is unsigned — on another Mac, first launch needs
+right-click → Open (Gatekeeper). Distributing outside your own machines
+properly requires an Apple Developer ID signature + notarization.
 
 ## Cross-platform notes
 

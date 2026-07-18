@@ -6,9 +6,9 @@ snapshot. The JS side polls `Api.poll()` ~8x/s and just renders.
 """
 
 import queue
+import sys
 import time
 from collections import deque
-from pathlib import Path
 
 from . import config as config_mod
 from . import model as model_mod
@@ -16,7 +16,10 @@ from .dispatch import NEEDS_TARGET, Dispatcher
 from .engine import AudioEngine
 from .evaluation import TAPS_PER_ZONE, EvaluationSession, latest_report
 
-UI_HTML = Path(__file__).resolve().parent.parent / "ui" / "index.html"
+from .paths import RESOURCES
+
+UI_DIST = RESOURCES / "web" / "dist" / "index.html"  # built React app (npm run build)
+UI_HTML = RESOURCES / "ui" / "index.html"            # legacy single-file fallback
 
 CALIB_TAPS = 10
 NEG_TAPS = 20
@@ -75,7 +78,13 @@ class Controller:
     def _handle(self, ev):
         kind = ev[0]
         if kind == "meter":
-            self.meter = ev[1]
+            # ev[1] is the raw RMS of a single ~12 ms audio block — displaying
+            # it unsmoothed makes the bar flicker and spike to full on any
+            # brief noise. Fast attack / slower release gives a readable
+            # VU-meter feel without hiding real taps.
+            rms = ev[1]
+            self.meter = (0.6 * self.meter + 0.4 * rms) if rms > self.meter \
+                else (0.85 * self.meter + 0.15 * rms)
         elif kind == "calib":
             _, zone, count, ok, guidance = ev
             target = NEG_TAPS if zone == "_negative" else CALIB_TAPS
@@ -255,6 +264,7 @@ class Controller:
                 "type": a["type"] if a else "visual",
                 "target": a.get("target", "") if a else "",
                 "sensitivity": z["sensitivity"],
+                "layout": config_mod.get_layout(z),
                 "desk": {"text": desk_sub, "tone": desk_tone},
                 "calib": calib_sub,
                 "eval": self.eval_live.get(zid, {"text": "", "tone": "muted"}),
@@ -285,6 +295,7 @@ class Api:
 
     def __init__(self, ctl: Controller):
         self._ctl = ctl
+        self._window = None  # set by main() once the window exists
 
     def poll(self):
         self._ctl.pump()
@@ -317,6 +328,17 @@ class Api:
         zone["sensitivity"] = int(value)
         config_mod.save(self._ctl.cfg)
 
+    def set_layout(self, zid, x, y, w, h):
+        """Purely visual — where/how big this zone's tile is drawn on the
+        desk map. Has no effect on tap detection (that's audio-only)."""
+        zone = config_mod.get_zone(self._ctl.cfg, zid)
+        clamp = lambda v: max(0.0, min(1.0, float(v)))  # noqa: E731
+        zone["layout"] = {
+            "x": clamp(x), "y": clamp(y),
+            "w": max(0.08, min(1.0, float(w))), "h": max(0.08, min(1.0, float(h))),
+        }
+        config_mod.save(self._ctl.cfg)
+
     def test_action(self, zid):
         zone = config_mod.get_zone(self._ctl.cfg, zid)
         try:
@@ -325,16 +347,45 @@ class Api:
         except Exception as e:  # noqa: BLE001
             return {"ok": False, "message": str(e)}
 
+    def browse(self, zid, kind):
+        """Native OS picker for 'app' / 'file' targets. Returns the chosen
+        path, or None if the dialog was cancelled."""
+        import webview
+
+        if kind == "app" and sys.platform == "darwin":
+            result = self._window.create_file_dialog(
+                webview.OPEN_DIALOG, directory="/Applications",
+                file_types=("Applications (*.app)",))
+        elif kind == "app" and sys.platform.startswith("win"):
+            result = self._window.create_file_dialog(
+                webview.OPEN_DIALOG, file_types=("Programs (*.exe)",))
+        else:
+            result = self._window.create_file_dialog(webview.OPEN_DIALOG)
+        if not result:
+            return None
+        target = result[0]
+        zone = config_mod.get_zone(self._ctl.cfg, zid)
+        zone["action"]["target"] = target
+        config_mod.save(self._ctl.cfg)
+        return target
+
 
 def main():
     import webview
 
     ctl = Controller()
     api = Api(ctl)
-    webview.create_window(
-        "Perimeter", html=UI_HTML.read_text(), js_api=api,
+    if UI_DIST.exists():
+        # Load by URL so the bundle's relative asset paths (js/css/fonts)
+        # resolve; inline html= would break them.
+        source = {"url": UI_DIST.as_uri()}
+    else:
+        source = {"html": UI_HTML.read_text()}
+    api._window = webview.create_window(
+        "Perimeter", js_api=api,
         width=1080, height=700, min_size=(940, 620),
         background_color="#09090b",
+        **source,
     )
     try:
         webview.start()

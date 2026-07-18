@@ -14,9 +14,9 @@ from scipy.io import wavfile
 
 from . import SAMPLE_RATE
 from . import features
+from .paths import DATA
 
-ROOT = Path(__file__).resolve().parent.parent
-PROFILES_DIR = ROOT / "data" / "profiles"
+PROFILES_DIR = DATA / "profiles"
 
 LOO_GATE = 0.75          # minimum overall leave-one-out agreement to save
 NOVELTY_FACTOR = 2.5     # x median intra-class NN distance → OOD

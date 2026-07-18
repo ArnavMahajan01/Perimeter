@@ -13,9 +13,9 @@ from . import model as model_mod
 from .capture import Capture
 from .dispatch import Dispatcher
 from .onset import OnsetDetector
+from .paths import DATA
 
-ROOT = Path(__file__).resolve().parent.parent
-EVENTS_LOG = ROOT / "data" / "events.log"
+EVENTS_LOG = DATA / "events.log"
 LOG_MAX_BYTES = 10 * 1024 * 1024
 
 

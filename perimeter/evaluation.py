@@ -6,8 +6,9 @@ import json
 import time
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-EVAL_DIR = ROOT / "data" / "evaluations"
+from .paths import DATA
+
+EVAL_DIR = DATA / "evaluations"
 
 TAPS_PER_ZONE = 15
 ACCURACY_TARGET = 0.80

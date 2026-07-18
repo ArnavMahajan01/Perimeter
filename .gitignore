@@ -1,2 +1,7 @@
 /.venv
 /__pycache__
+/data
+/web/node_modules
+/web/dist
+/build
+/dist

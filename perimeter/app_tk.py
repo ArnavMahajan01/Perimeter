@@ -604,9 +604,14 @@ class PerimeterApp:
                 kind = ev[0]
                 if kind == "meter":
                     _, rms, crest = ev
-                    self.mic_dot.configure(fg=GREEN if rms > 0 else DIM)
+                    # Smooth the raw per-block RMS (fast attack / slow release)
+                    # so the bar doesn't flicker and spike to full on brief noise.
+                    self._meter = getattr(self, "_meter", 0.0)
+                    self._meter = (0.6 * self._meter + 0.4 * rms) if rms > self._meter \
+                        else (0.85 * self._meter + 0.15 * rms)
+                    self.mic_dot.configure(fg=GREEN if self._meter > 0 else DIM)
                     w = self.diag_meter.winfo_width()
-                    frac = min(1.0, rms * 40)
+                    frac = min(1.0, self._meter * 40)
                     self.diag_meter.coords(self.diag_bar, 0, 0, int(w * frac), 4)
                 elif kind == "calib":
                     self._on_calib_event(ev[1], ev[2], ev[3], ev[4])

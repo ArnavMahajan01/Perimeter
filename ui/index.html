@@ -50,13 +50,15 @@ aside {
 .logo span { font-weight: 650; font-size: 14.5px; letter-spacing: -0.01em; }
 .nav-item {
   display: flex; align-items: center; gap: 10px;
-  padding: 7.5px 10px; border-radius: 8px; cursor: default;
+  padding: 7.5px 10px; border-radius: 8px; cursor: pointer;
   color: var(--muted-fg); font-weight: 500; margin-bottom: 2px;
+  transition: background .12s, color .12s;
 }
 .nav-item svg { width: 15px; height: 15px; stroke: currentColor; }
 .nav-item:hover { background: var(--card); color: var(--foreground); }
+.nav-item:active { background: var(--card-2); }
 .nav-item.active { background: var(--card); color: var(--foreground); }
-.nav-item.disabled { opacity: .4; pointer-events: none; }
+.nav-item.disabled { opacity: .4; pointer-events: none; cursor: default; }
 .sidebar-foot { margin-top: auto; padding: 10px; font-size: 12px; color: var(--dim);
   display: flex; align-items: center; gap: 7px; }
 .mic-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--dim); }
@@ -86,17 +88,18 @@ h1 { font-size: 19px; font-weight: 650; letter-spacing: -0.02em; }
 .btn {
   display: inline-flex; align-items: center; gap: 7px;
   border-radius: 8px; font-size: 13px; font-weight: 550;
-  padding: 8px 16px; cursor: default; border: 1px solid transparent;
-  transition: background .12s, border-color .12s, opacity .12s;
+  padding: 8px 16px; cursor: pointer; border: 1px solid transparent;
+  transition: background .12s, border-color .12s, opacity .12s, transform .05s;
   white-space: nowrap;
 }
+.btn:active { transform: scale(0.97); }
 .btn-primary { background: var(--primary); color: var(--primary-fg); }
 .btn-primary:hover { background: #e4e4e7; }
 .btn-outline { background: transparent; border-color: var(--border); color: var(--foreground); }
 .btn-outline:hover { background: var(--card); }
 .btn-ghost { background: transparent; color: var(--muted-fg); padding: 6px 10px; }
 .btn-ghost:hover { background: var(--card); color: var(--foreground); }
-.btn.disabled { opacity: .45; pointer-events: none; }
+.btn.disabled { opacity: .45; pointer-events: none; cursor: default; }
 .btn-destructive-o { background: transparent; border-color: var(--border); color: var(--err); }
 .btn-destructive-o:hover { background: rgba(248,113,113,.08); }
 
@@ -161,7 +164,7 @@ select, input[type=text] {
 select:focus, input[type=text]:focus {
   border-color: var(--ring); box-shadow: 0 0 0 1px var(--ring);
 }
-select { width: 122px; flex: none; appearance: none;
+select { width: 122px; flex: none; appearance: none; cursor: pointer;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23a1a1aa' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   background-repeat: no-repeat; background-position: right 9px center; padding-right: 26px; }
 input[type=text] { flex: 1; }
@@ -170,7 +173,7 @@ input[type=text]::placeholder { color: var(--dim); }
 
 /* switch */
 .switch { width: 34px; height: 19px; border-radius: 999px; background: var(--input);
-  position: relative; flex: none; transition: background .15s; }
+  position: relative; flex: none; transition: background .15s; cursor: pointer; }
 .switch::after { content: ""; position: absolute; top: 2px; left: 2px;
   width: 15px; height: 15px; border-radius: 50%; background: var(--muted-fg);
   transition: left .15s, background .15s; }
@@ -179,9 +182,9 @@ input[type=text]::placeholder { color: var(--dim); }
 
 /* slider */
 input[type=range] { -webkit-appearance: none; width: 90px; height: 3px;
-  border-radius: 2px; background: var(--input); outline: none; flex: none; }
+  border-radius: 2px; background: var(--input); outline: none; flex: none; cursor: pointer; }
 input[type=range]::-webkit-slider-thumb { -webkit-appearance: none;
-  width: 13px; height: 13px; border-radius: 50%; background: var(--foreground); }
+  width: 13px; height: 13px; border-radius: 50%; background: var(--foreground); cursor: pointer; }
 
 /* ---- evaluate ---- */
 .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
@@ -323,6 +326,7 @@ const ZONES = [
 ];
 const ACTION_TYPES = ["visual","sound","copy","speak","url","app","file","hotkey","shell","screenshot"];
 const NEEDS_TARGET = new Set(["copy","speak","url","app","file","hotkey","shell"]);
+const BROWSABLE = new Set(["app","file"]);
 const HINTS = { visual:"highlight only", sound:"system sound", copy:"text to copy",
   speak:"text to speak", url:"https://…", app:"application name",
   file:"path to file or folder", hotkey:"playpause / key code / keystroke expr",
@@ -360,6 +364,7 @@ for (const [label, ids] of groups) {
       <div class="switch" id="sw-${zid}"></div>
       <select id="type-${zid}">${ACTION_TYPES.map(t=>`<option>${t}</option>`).join("")}</select>
       <input type="text" id="target-${zid}" placeholder="">
+      <div class="btn btn-ghost" id="browse-${zid}" style="display:none">Browse…</div>
       <input type="range" min="0" max="100" id="sens-${zid}" title="sensitivity">
       <div class="btn btn-ghost" id="test-${zid}">Test</div>`;
     list.appendChild(row);
@@ -368,24 +373,36 @@ for (const [label, ids] of groups) {
     const inp = row.querySelector(`#target-${zid}`);
     const sw  = row.querySelector(`#sw-${zid}`);
     const sens= row.querySelector(`#sens-${zid}`);
+    const browse = row.querySelector(`#browse-${zid}`);
 
-    sel.addEventListener("change", () => {
+    sel.addEventListener("change", async () => {
       inp.placeholder = HINTS[sel.value] || "";
       inp.disabled = !NEEDS_TARGET.has(sel.value);
-      pywebview.api.set_action(zid, sel.value, inp.value);
+      browse.style.display = BROWSABLE.has(sel.value) ? "" : "none";
+      await pywebview.api.set_action(zid, sel.value, inp.value);
+      refresh();
+    });
+    browse.addEventListener("click", async () => {
+      const path = await pywebview.api.browse(zid, sel.value);
+      if (path) { inp.value = path; refresh(); }
     });
     inp.addEventListener("focus", () => editing = zid);
     inp.addEventListener("blur",  () => editing = null);
     inp.addEventListener("input", () => pywebview.api.set_action(zid, sel.value, inp.value));
-    sw.addEventListener("click", () => {
+    sw.addEventListener("click", async () => {
       const on = !sw.classList.contains("on");
       sw.classList.toggle("on", on);
-      pywebview.api.set_enabled(zid, on);
+      await pywebview.api.set_enabled(zid, on);
+      refresh();
     });
-    sens.addEventListener("change", () => pywebview.api.set_sensitivity(zid, sens.value));
+    sens.addEventListener("change", async () => {
+      await pywebview.api.set_sensitivity(zid, sens.value);
+      refresh();
+    });
     row.querySelector(`#test-${zid}`).addEventListener("click", async () => {
       const r = await pywebview.api.test_action(zid);
       setStatus(r.message, r.ok ? "ok" : "err");
+      refresh();
     });
   }
 }
@@ -402,10 +419,17 @@ document.querySelectorAll(".nav-item").forEach(item => {
 });
 
 // ---- controls ----
-document.getElementById("listenBtn").addEventListener("click", () => pywebview.api.toggle_listen());
-document.getElementById("calibBtn").addEventListener("click", () => pywebview.api.calib_toggle());
-document.getElementById("negBtn").addEventListener("click", () => pywebview.api.calib_negative());
-document.getElementById("evalBtn").addEventListener("click", () => pywebview.api.eval_toggle());
+// Backend calls resolve over the pywebview JS<->Python bridge, which can lag
+// a poll tick or two behind a click. Re-render the instant the call resolves
+// instead of waiting for the next scheduled poll, so buttons never feel like
+// they need a second click to "take."
+async function refresh() {
+  try { render(await pywebview.api.poll()); } catch (e) { /* window closing */ }
+}
+document.getElementById("listenBtn").addEventListener("click", async () => { await pywebview.api.toggle_listen(); refresh(); });
+document.getElementById("calibBtn").addEventListener("click", async () => { await pywebview.api.calib_toggle(); refresh(); });
+document.getElementById("negBtn").addEventListener("click", async () => { await pywebview.api.calib_negative(); refresh(); });
+document.getElementById("evalBtn").addEventListener("click", async () => { await pywebview.api.eval_toggle(); refresh(); });
 
 function setStatus(text, tone) {
   const el = document.getElementById("statusText");
@@ -505,12 +529,14 @@ function render(s) {
       const inp = document.getElementById(`target-${z.id}`);
       const sw = document.getElementById(`sw-${z.id}`);
       const sens = document.getElementById(`sens-${z.id}`);
+      const browse = document.getElementById(`browse-${z.id}`);
       if (document.activeElement !== sel) sel.value = z.type;
       if (document.activeElement !== inp) {
         inp.value = z.target;
         inp.placeholder = HINTS[z.type] || "";
         inp.disabled = !NEEDS_TARGET.has(z.type);
       }
+      browse.style.display = BROWSABLE.has(z.type) ? "" : "none";
       sw.classList.toggle("on", z.enabled);
       if (document.activeElement !== sens) sens.value = z.sensitivity;
     }
@@ -540,9 +566,7 @@ function render(s) {
 }
 
 function startPolling() {
-  setInterval(async () => {
-    try { render(await pywebview.api.poll()); } catch (e) { /* window closing */ }
-  }, 120);
+  setInterval(refresh, 120);
 }
 window.addEventListener("pywebviewready", startPolling);
 </script>
