@@ -1,0 +1,7 @@
+sounddevice>=0.4.6
+numpy>=1.26
+scipy>=1.13
+scikit-learn>=1.5
+joblib>=1.4
+pynput>=1.7
+pywebview>=5.0

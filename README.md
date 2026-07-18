@@ -1,0 +1,110 @@
+# Perimeter
+
+Four assignable tap zones on the desk around your laptop, sensed through the
+built-in microphone. Tap Left Rear — Gmail opens. Tap Right Front — a
+screenshot lands on your clipboard. Software only, cross-platform
+(macOS / Linux / Windows).
+
+Inspired by [Holo](https://github.com/JustinGamer191/Holo) (a macOS-only
+Swift prototype), reimplemented in Python so it runs on any OS.
+
+## Zone topology
+
+```text
+                  Display side
+Left Rear      ┌─────────────┐      Right Rear
+               │   laptop    │
+Left Front     └─────────────┘      Right Front
+                  Trackpad side
+```
+
+## How it works
+
+A tap sends a faint mechanical transient through the desk into the laptop
+chassis and mic. Each zone sounds measurably different (distance, damping,
+resonance paths differ), so zone identification is a small per-desk
+classification problem. The app detects tap-like transients (90 ms analysis
+windows, sustained-sound rejection), classifies the zone with a regularized
+linear model, applies ambiguity and out-of-distribution rejection, and runs
+the assigned action. Everything is local; raw audio is discarded after
+feature extraction.
+
+A calibration is specific to one laptop, desk, and position — moving the
+laptop means recalibrating (it takes about a minute).
+
+## Setup
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+Activate the venv (`source .venv/bin/activate`) in every new terminal.
+
+Permissions: the OS will prompt for microphone access on first run. Keyboard
+suppression (optional) needs Input Monitoring on macOS. Linux hotkey/copy
+actions use `xdotool` / `xclip` if installed.
+
+## Run
+
+```bash
+python3 cli.py app
+```
+
+The app opens a native window (pywebview + a shadcn-styled dark interface;
+falls back to a basic Tk window if pywebview is missing). Five sections in
+the sidebar:
+
+- **Desk** — the live view. START listening; tapped zones light up and run
+  their actions. Zone tiles show the assigned action.
+- **Calibrate** — guided setup. Each zone is armed in turn; make 10 natural
+  taps spread around the highlighted area. Weak, clipped, or noise-masked
+  taps are rejected with guidance ("tap more firmly", "wait for quiet").
+  Afterwards a leave-one-out agreement check identifies the weakest zone if
+  the calibration isn't reliable. Optionally add noise-rejection samples
+  (talk and type while armed) so speech and typing never fire actions.
+- **Actions** — one row per zone: `visual`, `sound`, `copy`, `speak`, `url`,
+  `app`, `file`, `hotkey`, `shell`, or `screenshot`, each with an inline
+  Test button. Changes save as they're made.
+- **Evaluate** — held-out accuracy test: 15 fresh taps per zone, armed one
+  zone at a time. Reports per-zone accuracy, a confusion matrix, and median
+  latency; targets are ≥80% accuracy and <200 ms. Saved as JSON + CSV and
+  restored on relaunch. Rejected taps count as incorrect.
+- **Diagnostics** — live input level and a rolling classification log.
+
+## Cross-platform notes
+
+| action     | macOS            | Linux                    | Windows            |
+|------------|------------------|--------------------------|--------------------|
+| sound      | `afplay`         | `paplay` / `aplay`       | SystemSounds       |
+| copy       | `pbcopy`         | `xclip` / `wl-copy`      | `clip`             |
+| speak      | `say`            | `espeak` / `spd-say`     | System.Speech      |
+| url / file | `open`           | `xdg-open`               | `start`            |
+| app        | `open -a`        | `gtk-launch` / exec      | `start`            |
+| hotkey     | `osascript`      | `xdotool`                | SendKeys           |
+| screenshot | `screencapture`  | `gnome-screenshot`       | PrintScreen        |
+
+## Honest limitations (same physics as Holo)
+
+- Rigid desks (solid wood, laminate) work best. Glass, hollow-core, or
+  heavily damped surfaces may not produce separable zones at all.
+- The 4 zones must be spread out; adjacent spots on a uniform surface won't
+  separate.
+- Typing, mug placement, and speech can resemble taps — the sustained-sound
+  gate, noise-rejection samples, and OOD rejection reduce false fires but
+  can't guarantee zero.
+- Run **Evaluate** before trusting it: no desk is "supported" until it
+  passes an accuracy test on that exact setup.
+
+## Power-user CLI
+
+```bash
+python3 cli.py devices     # list microphones
+python3 cli.py listen      # raw tap-detection meter
+python3 cli.py run         # headless daemon (uses the app's calibration)
+python3 cli.py test        # predictions only, nothing fires
+```
+
+Tap decisions are logged to `data/events.log` (JSONL). Evaluation reports
+live in `data/evaluations/`, profiles in `data/profiles/`.

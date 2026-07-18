@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Perimeter</title>
+<style>
+/* shadcn/ui zinc dark theme tokens */
+:root {
+  --background: #09090b;
+  --foreground: #fafafa;
+  --card: #18181b;
+  --card-2: #1f1f23;
+  --border: #27272a;
+  --input: #27272a;
+  --muted-fg: #a1a1aa;
+  --dim: #52525b;
+  --primary: #fafafa;
+  --primary-fg: #18181b;
+  --ok: #4ade80;
+  --warn: #fbbf24;
+  --err: #f87171;
+  --ring: #d4d4d8;
+  --radius: 10px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  display: flex;
+  overflow: hidden;
+  user-select: none;
+}
+
+/* ---- sidebar ---- */
+aside {
+  width: 212px; flex: none;
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  padding: 18px 10px 14px;
+}
+.logo { display: flex; align-items: center; gap: 9px; padding: 4px 10px 18px; }
+.logo-mark {
+  width: 26px; height: 26px; border-radius: 7px;
+  background: var(--primary); color: var(--primary-fg);
+  display: grid; place-items: center; font-weight: 700; font-size: 13px;
+}
+.logo span { font-weight: 650; font-size: 14.5px; letter-spacing: -0.01em; }
+.nav-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 7.5px 10px; border-radius: 8px; cursor: default;
+  color: var(--muted-fg); font-weight: 500; margin-bottom: 2px;
+}
+.nav-item svg { width: 15px; height: 15px; stroke: currentColor; }
+.nav-item:hover { background: var(--card); color: var(--foreground); }
+.nav-item.active { background: var(--card); color: var(--foreground); }
+.nav-item.disabled { opacity: .4; pointer-events: none; }
+.sidebar-foot { margin-top: auto; padding: 10px; font-size: 12px; color: var(--dim);
+  display: flex; align-items: center; gap: 7px; }
+.mic-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--dim); }
+.mic-dot.on { background: var(--ok); }
+
+/* ---- main ---- */
+main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.view { flex: 1; overflow-y: auto; padding: 26px 30px 18px; display: none; }
+.view.active { display: block; }
+.view-head { display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 4px; }
+h1 { font-size: 19px; font-weight: 650; letter-spacing: -0.02em; }
+.view-sub { color: var(--muted-fg); font-size: 13px; margin: 2px 0 20px; max-width: 640px; }
+
+/* ---- status bar ---- */
+.statusbar {
+  border-top: 1px solid var(--border);
+  padding: 9px 30px; font-size: 12.5px; color: var(--muted-fg);
+  display: flex; justify-content: space-between; align-items: center;
+  flex: none; background: var(--background);
+}
+.tone-ok { color: var(--ok); } .tone-warn { color: var(--warn); }
+.tone-err { color: var(--err); } .tone-muted { color: var(--muted-fg); }
+.tone-dim { color: var(--dim); }
+
+/* ---- buttons (shadcn) ---- */
+.btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  border-radius: 8px; font-size: 13px; font-weight: 550;
+  padding: 8px 16px; cursor: default; border: 1px solid transparent;
+  transition: background .12s, border-color .12s, opacity .12s;
+  white-space: nowrap;
+}
+.btn-primary { background: var(--primary); color: var(--primary-fg); }
+.btn-primary:hover { background: #e4e4e7; }
+.btn-outline { background: transparent; border-color: var(--border); color: var(--foreground); }
+.btn-outline:hover { background: var(--card); }
+.btn-ghost { background: transparent; color: var(--muted-fg); padding: 6px 10px; }
+.btn-ghost:hover { background: var(--card); color: var(--foreground); }
+.btn.disabled { opacity: .45; pointer-events: none; }
+.btn-destructive-o { background: transparent; border-color: var(--border); color: var(--err); }
+.btn-destructive-o:hover { background: rgba(248,113,113,.08); }
+
+/* ---- badge ---- */
+.badge {
+  display: inline-flex; align-items: center; border-radius: 999px;
+  font-size: 11px; font-weight: 550; padding: 2.5px 9px;
+  border: 1px solid var(--border); color: var(--muted-fg);
+}
+.badge.ok { color: var(--ok); border-color: rgba(74,222,128,.35); background: rgba(74,222,128,.07); }
+.badge.warn { color: var(--warn); border-color: rgba(251,191,36,.35); background: rgba(251,191,36,.07); }
+.badge.err { color: var(--err); border-color: rgba(248,113,113,.35); background: rgba(248,113,113,.07); }
+
+/* ---- desk map ---- */
+.desk-grid {
+  display: grid; grid-template-columns: 1fr 130px 1fr; grid-template-rows: 1fr 1fr;
+  gap: 12px; min-height: 300px; margin-bottom: 16px;
+}
+.laptop {
+  grid-row: 1 / span 2; grid-column: 2;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 4px; color: var(--dim); font-size: 12px;
+}
+.laptop-shape {
+  width: 84px; height: 58px; border: 1.5px solid var(--border); border-radius: 8px;
+  background: linear-gradient(180deg, var(--card) 0%, var(--background) 100%);
+  display: grid; place-items: center; font-size: 20px; color: var(--dim);
+}
+.zone-tile {
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 16px 18px; display: flex; flex-direction: column; gap: 6px;
+  transition: border-color .15s, box-shadow .15s; position: relative;
+}
+.zone-tile .z-name { font-weight: 600; font-size: 13.5px; letter-spacing: -0.01em; }
+.zone-tile .z-sub { font-size: 12.5px; color: var(--muted-fg); min-height: 18px; }
+.zone-tile.flash-ok { border-color: var(--ok); box-shadow: 0 0 0 1px var(--ok),
+  0 0 24px rgba(74,222,128,.25); }
+.zone-tile.flash-err { border-color: var(--err); box-shadow: 0 0 0 1px var(--err),
+  0 0 24px rgba(248,113,113,.25); }
+.axis { font-size: 11px; color: var(--dim); text-align: center; margin-bottom: 8px; }
+
+/* ---- cards / rows ---- */
+.card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 16px 18px;
+}
+.action-row {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 13px 16px; margin-bottom: 8px;
+}
+.action-row .z-label { width: 92px; flex: none; font-weight: 600; font-size: 13px; }
+.group-label { font-size: 11px; font-weight: 600; letter-spacing: .08em;
+  color: var(--dim); text-transform: uppercase; margin: 16px 0 8px; }
+
+select, input[type=text] {
+  background: var(--background); color: var(--foreground);
+  border: 1px solid var(--input); border-radius: 8px;
+  font: inherit; font-size: 13px; padding: 7px 10px; outline: none;
+  transition: border-color .12s, box-shadow .12s;
+}
+select:focus, input[type=text]:focus {
+  border-color: var(--ring); box-shadow: 0 0 0 1px var(--ring);
+}
+select { width: 122px; flex: none; appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23a1a1aa' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 9px center; padding-right: 26px; }
+input[type=text] { flex: 1; }
+input[type=text]:disabled { opacity: .4; }
+input[type=text]::placeholder { color: var(--dim); }
+
+/* switch */
+.switch { width: 34px; height: 19px; border-radius: 999px; background: var(--input);
+  position: relative; flex: none; transition: background .15s; }
+.switch::after { content: ""; position: absolute; top: 2px; left: 2px;
+  width: 15px; height: 15px; border-radius: 50%; background: var(--muted-fg);
+  transition: left .15s, background .15s; }
+.switch.on { background: var(--ok); }
+.switch.on::after { left: 17px; background: #052e16; }
+
+/* slider */
+input[type=range] { -webkit-appearance: none; width: 90px; height: 3px;
+  border-radius: 2px; background: var(--input); outline: none; flex: none; }
+input[type=range]::-webkit-slider-thumb { -webkit-appearance: none;
+  width: 13px; height: 13px; border-radius: 50%; background: var(--foreground); }
+
+/* ---- evaluate ---- */
+.stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+  margin-bottom: 16px; }
+.stat-card { background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 14px 16px; }
+.stat-card .s-label { font-size: 11.5px; color: var(--muted-fg); margin-bottom: 4px; }
+.stat-card .s-value { font-size: 22px; font-weight: 650; letter-spacing: -0.02em; }
+table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+th, td { text-align: right; padding: 7px 10px; border-bottom: 1px solid var(--border); }
+th:first-child, td:first-child { text-align: left; }
+th { color: var(--muted-fg); font-weight: 550; font-size: 11.5px; }
+td { color: var(--foreground); font-variant-numeric: tabular-nums; }
+tr:last-child td { border-bottom: none; }
+
+/* ---- diagnostics ---- */
+.meter-track { height: 6px; border-radius: 3px; background: var(--input);
+  overflow: hidden; margin: 6px 0 16px; }
+.meter-fill { height: 100%; width: 0%; border-radius: 3px;
+  background: var(--foreground); transition: width .1s linear; }
+.log-box { background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 12px 14px; height: 300px; overflow-y: auto;
+  font: 12px/1.7 "SF Mono", Menlo, monospace; color: var(--muted-fg);
+  white-space: pre-wrap; }
+.kv { display: grid; grid-template-columns: 130px 1fr; gap: 4px 12px;
+  font-size: 13px; margin-bottom: 16px; }
+.kv .k { color: var(--muted-fg); }
+
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<aside>
+  <div class="logo"><div class="logo-mark">P</div><span>Perimeter</span></div>
+  <div class="nav-item active" data-view="desk">
+    <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+    Desk
+  </div>
+  <div class="nav-item" data-view="calibrate">
+    <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><path d="M12 1v3M12 20v3M1 12h3M20 12h3"/></svg>
+    Calibrate
+  </div>
+  <div class="nav-item" data-view="actions">
+    <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z"/></svg>
+    Actions
+  </div>
+  <div class="nav-item" data-view="evaluate">
+    <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M3 3v18h18"/><path d="m7 13 4-4 4 3 5-6"/></svg>
+    Evaluate
+  </div>
+  <div class="nav-item" data-view="diagnostics">
+    <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+    Diagnostics
+  </div>
+  <div class="sidebar-foot"><div class="mic-dot" id="micDot"></div><span id="micLabel">microphone</span></div>
+</aside>
+
+<main>
+  <!-- DESK -->
+  <div class="view active" id="view-desk">
+    <div class="view-head">
+      <h1>Desk</h1>
+      <div class="btn btn-primary" id="listenBtn">Start listening</div>
+    </div>
+    <p class="view-sub">Tap a calibrated zone on the desk to run its action. Zones light up when they fire.</p>
+    <div class="axis">display side</div>
+    <div class="desk-grid" id="desk-grid">
+      <div class="laptop"><div class="laptop-shape">⌨</div>laptop</div>
+    </div>
+    <div class="axis">trackpad side</div>
+  </div>
+
+  <!-- CALIBRATE -->
+  <div class="view" id="view-calibrate">
+    <div class="view-head">
+      <h1>Calibrate</h1>
+      <div class="btn btn-primary" id="calibBtn">Begin calibration</div>
+    </div>
+    <p class="view-sub">Each zone arms in turn — make 10 natural taps spread around the highlighted area.
+       Keep the laptop where it will stay; moving it invalidates calibration.</p>
+    <div class="axis">display side</div>
+    <div class="desk-grid" id="calib-grid">
+      <div class="laptop"><div class="laptop-shape">⌨</div>laptop</div>
+    </div>
+    <div class="axis">trackpad side</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:14px">
+      <div class="btn btn-outline" id="negBtn">＋ Noise rejection</div>
+      <span id="trainMsg" class="tone-muted" style="font-size:13px"></span>
+    </div>
+  </div>
+
+  <!-- ACTIONS -->
+  <div class="view" id="view-actions">
+    <div class="view-head"><h1>Actions</h1></div>
+    <p class="view-sub">What each zone does when tapped. Changes save automatically.</p>
+    <div id="actions-list"></div>
+  </div>
+
+  <!-- EVALUATE -->
+  <div class="view" id="view-evaluate">
+    <div class="view-head">
+      <h1>Evaluate</h1>
+      <div class="btn btn-primary" id="evalBtn">Run accuracy test</div>
+    </div>
+    <p class="view-sub">Held-out test: 15 fresh taps per zone, armed one at a time.
+       Targets: ≥80% accuracy, median latency &lt;200 ms. Rejected taps count as incorrect.</p>
+    <div class="axis">display side</div>
+    <div class="desk-grid" id="eval-grid" style="min-height:220px">
+      <div class="laptop"><div class="laptop-shape">⌨</div>laptop</div>
+    </div>
+    <div class="axis" style="margin-bottom:16px">trackpad side</div>
+    <div id="report-area"></div>
+  </div>
+
+  <!-- DIAGNOSTICS -->
+  <div class="view" id="view-diagnostics">
+    <div class="view-head"><h1>Diagnostics</h1></div>
+    <p class="view-sub">Live input level and the rolling classification log.</p>
+    <div class="kv" id="diag-kv"></div>
+    <div style="font-size:12px;color:var(--muted-fg)">input level</div>
+    <div class="meter-track"><div class="meter-fill" id="meterFill"></div></div>
+    <div class="log-box" id="logBox"></div>
+  </div>
+
+  <div class="statusbar">
+    <span id="statusText" class="tone-muted">starting…</span>
+    <span id="profileText" class="tone-dim"></span>
+  </div>
+</main>
+
+<script>
+const ZONES = [
+  { id: "lr", name: "Left Rear"  },
+  { id: "rr", name: "Right Rear" },
+  { id: "lf", name: "Left Front" },
+  { id: "rf", name: "Right Front"},
+];
+const ACTION_TYPES = ["visual","sound","copy","speak","url","app","file","hotkey","shell","screenshot"];
+const NEEDS_TARGET = new Set(["copy","speak","url","app","file","hotkey","shell"]);
+const HINTS = { visual:"highlight only", sound:"system sound", copy:"text to copy",
+  speak:"text to speak", url:"https://…", app:"application name",
+  file:"path to file or folder", hotkey:"playpause / key code / keystroke expr",
+  shell:"shell command", screenshot:"full screen to clipboard" };
+
+let editing = null;   // "zid" while user is typing a target — don't overwrite
+
+// ---- build desk maps ----
+for (const gridId of ["desk-grid","calib-grid","eval-grid"]) {
+  const grid = document.getElementById(gridId);
+  for (const z of ZONES) {
+    const el = document.createElement("div");
+    el.className = "zone-tile";
+    el.id = `${gridId}-${z.id}`;
+    el.innerHTML = `<div class="z-name">${z.name}</div><div class="z-sub"></div>`;
+    const pos = { lr:[1,1], rr:[1,3], lf:[2,1], rf:[2,3] }[z.id];
+    el.style.gridRow = pos[0]; el.style.gridColumn = pos[1];
+    grid.appendChild(el);
+  }
+}
+
+// ---- build action rows ----
+const list = document.getElementById("actions-list");
+const groups = [["Left side", ["lr","lf"]], ["Right side", ["rr","rf"]]];
+for (const [label, ids] of groups) {
+  const g = document.createElement("div");
+  g.className = "group-label"; g.textContent = label;
+  list.appendChild(g);
+  for (const zid of ids) {
+    const z = ZONES.find(x => x.id === zid);
+    const row = document.createElement("div");
+    row.className = "action-row";
+    row.innerHTML = `
+      <div class="z-label">${z.name}</div>
+      <div class="switch" id="sw-${zid}"></div>
+      <select id="type-${zid}">${ACTION_TYPES.map(t=>`<option>${t}</option>`).join("")}</select>
+      <input type="text" id="target-${zid}" placeholder="">
+      <input type="range" min="0" max="100" id="sens-${zid}" title="sensitivity">
+      <div class="btn btn-ghost" id="test-${zid}">Test</div>`;
+    list.appendChild(row);
+
+    const sel = row.querySelector(`#type-${zid}`);
+    const inp = row.querySelector(`#target-${zid}`);
+    const sw  = row.querySelector(`#sw-${zid}`);
+    const sens= row.querySelector(`#sens-${zid}`);
+
+    sel.addEventListener("change", () => {
+      inp.placeholder = HINTS[sel.value] || "";
+      inp.disabled = !NEEDS_TARGET.has(sel.value);
+      pywebview.api.set_action(zid, sel.value, inp.value);
+    });
+    inp.addEventListener("focus", () => editing = zid);
+    inp.addEventListener("blur",  () => editing = null);
+    inp.addEventListener("input", () => pywebview.api.set_action(zid, sel.value, inp.value));
+    sw.addEventListener("click", () => {
+      const on = !sw.classList.contains("on");
+      sw.classList.toggle("on", on);
+      pywebview.api.set_enabled(zid, on);
+    });
+    sens.addEventListener("change", () => pywebview.api.set_sensitivity(zid, sens.value));
+    row.querySelector(`#test-${zid}`).addEventListener("click", async () => {
+      const r = await pywebview.api.test_action(zid);
+      setStatus(r.message, r.ok ? "ok" : "err");
+    });
+  }
+}
+
+// ---- nav ----
+let currentView = "desk";
+document.querySelectorAll(".nav-item").forEach(item => {
+  item.addEventListener("click", () => {
+    currentView = item.dataset.view;
+    document.querySelectorAll(".nav-item").forEach(i => i.classList.toggle("active", i === item));
+    document.querySelectorAll(".view").forEach(v =>
+      v.classList.toggle("active", v.id === `view-${currentView}`));
+  });
+});
+
+// ---- controls ----
+document.getElementById("listenBtn").addEventListener("click", () => pywebview.api.toggle_listen());
+document.getElementById("calibBtn").addEventListener("click", () => pywebview.api.calib_toggle());
+document.getElementById("negBtn").addEventListener("click", () => pywebview.api.calib_negative());
+document.getElementById("evalBtn").addEventListener("click", () => pywebview.api.eval_toggle());
+
+function setStatus(text, tone) {
+  const el = document.getElementById("statusText");
+  el.textContent = text;
+  el.className = "tone-" + (tone || "muted");
+}
+
+function setTile(gridId, zid, sub) {
+  const el = document.getElementById(`${gridId}-${zid}`);
+  if (!el) return;
+  const subEl = el.querySelector(".z-sub");
+  subEl.textContent = sub.text || "";
+  subEl.className = "z-sub tone-" + (sub.tone || "muted");
+}
+
+function flash(zid, tone) {
+  for (const gridId of ["desk-grid","calib-grid","eval-grid"]) {
+    const el = document.getElementById(`${gridId}-${zid}`);
+    if (!el) continue;
+    el.classList.add(tone === "err" ? "flash-err" : "flash-ok");
+    setTimeout(() => el.classList.remove("flash-ok","flash-err"), 550);
+  }
+}
+
+function renderReport(r) {
+  const area = document.getElementById("report-area");
+  if (!r) { area.innerHTML = ""; return; }
+  const zoneName = id => (ZONES.find(z=>z.id===id)||{name:id}).name;
+  const badge = r.passed
+    ? `<span class="badge ok">passed</span>`
+    : `<span class="badge warn">missed targets</span>`;
+  let perZone = "";
+  for (const [zid, z] of Object.entries(r.per_zone)) {
+    perZone += `<tr><td>${zoneName(zid)}</td><td>${z.correct}/${z.taps}</td>
+      <td>${Math.round(z.accuracy*100)}%</td></tr>`;
+  }
+  const labels = [...Object.keys(r.confusion), "(rejected)"];
+  let confHead = labels.map(l => `<th>${l === "(rejected)" ? "rej." : zoneName(l)}</th>`).join("");
+  let confRows = "";
+  for (const [e, row] of Object.entries(r.confusion)) {
+    confRows += `<tr><td>${zoneName(e)}</td>` +
+      labels.map(p => `<td>${row[p] ?? 0}</td>`).join("") + "</tr>";
+  }
+  area.innerHTML = `
+    <div class="stat-grid">
+      <div class="stat-card"><div class="s-label">accuracy</div>
+        <div class="s-value">${Math.round(r.accuracy*100)}%</div></div>
+      <div class="stat-card"><div class="s-label">median latency</div>
+        <div class="s-value">${Math.round(r.median_latency_ms)} ms</div></div>
+      <div class="stat-card"><div class="s-label">verdict · ${r.timestamp}</div>
+        <div class="s-value" style="font-size:15px;padding-top:6px">${badge}</div></div>
+    </div>
+    <div class="card" style="margin-bottom:12px">
+      <table><thead><tr><th>zone</th><th>correct</th><th>accuracy</th></tr></thead>
+      <tbody>${perZone}</tbody></table>
+    </div>
+    <div class="card">
+      <div style="font-size:12px;color:var(--muted-fg);margin-bottom:6px">confusion (rows = expected)</div>
+      <table><thead><tr><th></th>${confHead}</tr></thead><tbody>${confRows}</tbody></table>
+    </div>`;
+}
+
+let lastReportTs = null;
+
+function render(s) {
+  // buttons
+  const lb = document.getElementById("listenBtn");
+  lb.textContent = s.listening ? "Stop listening" : "Start listening";
+  lb.className = "btn " + (s.listening ? "btn-destructive-o" : "btn-primary")
+    + ((s.locked || !s.calibrated) && !s.listening ? " disabled" : "");
+  const cb = document.getElementById("calibBtn");
+  cb.textContent = s.calibrating ? "Cancel" : "Begin calibration";
+  cb.className = "btn " + (s.calibrating ? "btn-destructive-o" : "btn-primary")
+    + (s.listening || s.evaluating ? " disabled" : "");
+  const eb = document.getElementById("evalBtn");
+  eb.textContent = s.evaluating ? "Cancel" : "Run accuracy test";
+  eb.className = "btn " + (s.evaluating ? "btn-destructive-o" : "btn-primary")
+    + ((s.listening || s.calibrating || !s.calibrated) && !s.evaluating ? " disabled" : "");
+  const nb = document.getElementById("negBtn");
+  nb.textContent = s.negLive ? s.negLive
+    : `＋ Noise rejection${s.negativeCount ? ` · ${s.negativeCount} samples` : ""}`;
+  nb.className = "btn btn-outline" + (s.locked || s.listening ? " disabled" : "");
+
+  // nav lock
+  document.querySelectorAll(".nav-item").forEach(i => {
+    const locked = s.locked && i.dataset.view !== currentView;
+    i.classList.toggle("disabled", locked);
+  });
+
+  // tiles
+  for (const z of s.zones) {
+    setTile("desk-grid", z.id, z.desk);
+    setTile("calib-grid", z.id, z.calib);
+    setTile("eval-grid", z.id, z.eval);
+    if (editing !== z.id) {
+      const sel = document.getElementById(`type-${z.id}`);
+      const inp = document.getElementById(`target-${z.id}`);
+      const sw = document.getElementById(`sw-${z.id}`);
+      const sens = document.getElementById(`sens-${z.id}`);
+      if (document.activeElement !== sel) sel.value = z.type;
+      if (document.activeElement !== inp) {
+        inp.value = z.target;
+        inp.placeholder = HINTS[z.type] || "";
+        inp.disabled = !NEEDS_TARGET.has(z.type);
+      }
+      sw.classList.toggle("on", z.enabled);
+      if (document.activeElement !== sens) sens.value = z.sensitivity;
+    }
+  }
+
+  // flashes
+  for (const f of s.flashes) flash(f.zone, f.tone);
+
+  // status + misc
+  setStatus(s.status.text, s.status.tone);
+  document.getElementById("profileText").textContent = `${s.device} · profile ${s.profile}`;
+  document.getElementById("micDot").className = "mic-dot" + (s.meter > 0.001 ? " on" : "");
+  document.getElementById("meterFill").style.width = (s.meter * 100).toFixed(1) + "%";
+  const tm = document.getElementById("trainMsg");
+  if (s.trainMsg) { tm.textContent = s.trainMsg.text; tm.className = "tone-" + s.trainMsg.tone; }
+  else tm.textContent = "";
+
+  document.getElementById("logBox").textContent = s.logs.join("\n");
+  document.getElementById("diag-kv").innerHTML =
+    `<span class="k">input</span><span>${s.device}</span>
+     <span class="k">profile</span><span>${s.profile}</span>
+     <span class="k">window</span><span>90 ms @ 44100 Hz</span>
+     <span class="k">calibrated</span><span>${s.calibrated ? "yes" : "no"}</span>`;
+
+  const ts = s.report ? s.report.timestamp : null;
+  if (ts !== lastReportTs) { lastReportTs = ts; renderReport(s.report); }
+}
+
+function startPolling() {
+  setInterval(async () => {
+    try { render(await pywebview.api.poll()); } catch (e) { /* window closing */ }
+  }, 120);
+}
+window.addEventListener("pywebviewready", startPolling);
+</script>
+</body>
+</html>
