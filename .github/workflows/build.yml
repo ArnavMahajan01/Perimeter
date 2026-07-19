@@ -5,6 +5,10 @@ on:
     tags: ["v*"]
   workflow_dispatch:
 
+# Allow the workflow token to create releases and upload assets
+permissions:
+  contents: write
+
 jobs:
   build:
     strategy:
@@ -19,13 +23,13 @@ jobs:
             artifact: Perimeter-linux.tar.gz
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
@@ -62,7 +66,7 @@ jobs:
         if: runner.os == 'Linux'
         run: tar -czf ${{ matrix.artifact }} -C dist Perimeter
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: ${{ matrix.artifact }}
           path: ${{ matrix.artifact }}
