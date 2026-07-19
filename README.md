@@ -145,3 +145,11 @@ python3 cli.py test        # predictions only, nothing fires
 
 Tap decisions are logged to `data/events.log` (JSONL). Evaluation reports
 live in `data/evaluations/`, profiles in `data/profiles/`.
+
+## Credits
+
+The idea comes from [Holo](https://github.com/JustinGamer191/Holo) by
+[@JustinGamer191](https://github.com/JustinGamer191) — a macOS Swift
+prototype that first showed desk-tap zones sensed through the built-in
+microphone were possible. Perimeter reimplements the concept from scratch
+in Python, cross-platform, with its own calibration, evaluation, and UI.
