@@ -5,6 +5,11 @@ built-in microphone. Tap Left Rear — Gmail opens. Tap Right Front — a
 screenshot lands on your clipboard. Software only, cross-platform
 (macOS / Linux / Windows).
 
+**[⬇ Download for macOS](https://github.com/ArnavMahajan01/Perimeter/releases/latest)** —
+unzip, drag to Applications, then **right-click → Open** on first launch
+(the app isn't code-signed yet). Everything runs locally; audio is analyzed
+and discarded on the spot.
+
 Inspired by [Holo](https://github.com/JustinGamer191/Holo) (a macOS-only
 Swift prototype), reimplemented in Python so it runs on any OS.
 
