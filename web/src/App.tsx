@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { Toaster } from "@/components/ui/sonner";
 import { cn } from "@/lib/utils";
+import iconUrl from "@/assets/icon.png";
 import { usePerimeter } from "@/lib/usePerimeter";
 import type { Tone } from "@/lib/types";
 import { DeskView } from "@/components/views/DeskView";
@@ -68,9 +69,7 @@ export default function App() {
       {/* sidebar */}
       <aside className="flex w-[212px] flex-none flex-col border-r bg-sidebar px-2.5 pt-4 pb-3.5">
         <div className="flex items-center gap-2.5 px-2.5 pb-4">
-          <div className="grid h-7 w-7 place-items-center rounded-md bg-primary text-[13px] font-bold text-primary-foreground">
-            P
-          </div>
+          <img src={iconUrl} alt="" className="h-7 w-7" />
           <span className="text-[14.5px] font-semibold tracking-tight">Perimeter</span>
         </div>
         <nav className="flex flex-col gap-0.5">

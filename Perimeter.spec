@@ -38,6 +38,8 @@ exe = EXE(
     name="Perimeter",
     console=False,
     disable_windowed_traceback=False,
+    # Used by Windows builds; ignored on macOS (BUNDLE icon applies there)
+    icon=str(ROOT / "assets" / "New" / "Perimeter-bw.ico"),
 )
 
 coll = COLLECT(
@@ -51,7 +53,9 @@ if sys.platform == "darwin":
     app = BUNDLE(
         coll,
         name="Perimeter.app",
+        icon=str(ROOT / "assets" / "New" / "Perimeter-bw.icns"),
         bundle_identifier="com.arnav.perimeter",
+        version="0.1.0",
         info_plist={
             "NSMicrophoneUsageDescription":
                 "Perimeter listens for desk taps through the microphone. "

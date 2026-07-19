@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <clipPath id="squircle">
+      <rect x="0" y="0" width="1024" height="1024" rx="228"/>
+    </clipPath>
+  </defs>
+  <g clip-path="url(#squircle)">
+    <rect width="1024" height="1024" fill="#0d0d0d"/>
+
+    <!-- faint concentric arcs -->
+    <g stroke="#2b2b2b" stroke-width="3" fill="none">
+      <circle cx="512" cy="512" r="330"/>
+      <circle cx="512" cy="512" r="410" opacity="0.6"/>
+      <circle cx="512" cy="512" r="490" opacity="0.35"/>
+    </g>
+
+    <!-- Four corner tap pings -->
+    <g fill="#ffffff" stroke="#ffffff">
+      <g>
+        <circle cx="238" cy="238" r="34" stroke="none"/>
+        <circle cx="238" cy="238" r="72" fill="none" stroke-width="14" opacity="0.75"/>
+        <circle cx="238" cy="238" r="112" fill="none" stroke-width="9" opacity="0.35"/>
+      </g>
+      <g>
+        <circle cx="786" cy="238" r="34" stroke="none"/>
+        <circle cx="786" cy="238" r="72" fill="none" stroke-width="14" opacity="0.75"/>
+        <circle cx="786" cy="238" r="112" fill="none" stroke-width="9" opacity="0.35"/>
+      </g>
+      <g>
+        <circle cx="238" cy="786" r="34" stroke="none"/>
+        <circle cx="238" cy="786" r="72" fill="none" stroke-width="14" opacity="0.75"/>
+        <circle cx="238" cy="786" r="112" fill="none" stroke-width="9" opacity="0.35"/>
+      </g>
+      <g>
+        <circle cx="786" cy="786" r="34" stroke="none"/>
+        <circle cx="786" cy="786" r="72" fill="none" stroke-width="14" opacity="0.75"/>
+        <circle cx="786" cy="786" r="112" fill="none" stroke-width="9" opacity="0.35"/>
+      </g>
+    </g>
+
+    <!-- Laptop, top-down (scaled up, light bezel so the screen reads on the
+         dark background even at Dock size) -->
+    <g transform="translate(512 512) scale(1.22) translate(-512 -512)">
+      <rect x="302" y="560" width="420" height="118" rx="28" fill="#f2f2f2"/>
+      <rect x="452" y="592" width="120" height="54" rx="12" fill="#9a9a9a"/>
+      <path d="M340 348 L684 348 Q708 348 706 372 L689 538 Q687 560 664 560 L360 560 Q337 560 335 538 L318 372 Q316 348 340 348 Z" fill="#f2f2f2"/>
+      <path d="M360 382 L664 382 Q677 382 676 396 L663 516 Q662 530 648 530 L376 530 Q362 530 361 516 L348 396 Q347 382 360 382 Z" fill="#0d0d0d"/>
+      <!-- waveform -->
+      <g stroke="#ffffff" stroke-width="20" stroke-linecap="round">
+        <line x1="428" y1="438" x2="428" y2="474"/>
+        <line x1="470" y1="420" x2="470" y2="492"/>
+        <line x1="512" y1="400" x2="512" y2="512"/>
+        <line x1="554" y1="420" x2="554" y2="492"/>
+        <line x1="596" y1="438" x2="596" y2="474"/>
+      </g>
+    </g>
+  </g>
+</svg>

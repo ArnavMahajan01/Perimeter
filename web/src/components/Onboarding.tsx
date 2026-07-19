@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { Crosshair, Hand, Mic, Waves } from "lucide-react";
+import { Crosshair, Hand, Mic } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import iconUrl from "@/assets/icon.png";
 import type { AppState } from "@/lib/types";
 import type { Act } from "@/lib/usePerimeter";
 
@@ -39,7 +40,7 @@ export function Onboarding({ state, act, onFinish }: Props) {
 
         {step === 0 && (
           <>
-            <Waves className="mb-4 size-8 text-muted-foreground" />
+            <img src={iconUrl} alt="" className="mb-4 size-12" />
             <h2 className="mb-2 text-lg font-semibold tracking-tight">
               Turn your desk into buttons
             </h2>
