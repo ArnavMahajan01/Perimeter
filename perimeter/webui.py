@@ -25,6 +25,12 @@ PAUSE_HOTKEY = "<ctrl>+<alt>+p"
 UI_DIST = RESOURCES / "web" / "dist" / "index.html"  # built React app (npm run build)
 UI_HTML = RESOURCES / "ui" / "index.html"            # legacy single-file fallback
 
+# Runtime dock/window icon: bundled at assets/ in the packaged app,
+# at assets/New/ in the repo during dev.
+_icon_candidates = [RESOURCES / "assets" / "bw_512.png",
+                    RESOURCES / "assets" / "New" / "bw_512.png"]
+APP_ICON = next((p for p in _icon_candidates if p.exists()), _icon_candidates[0])
+
 CALIB_TAPS = 10
 NEG_TAPS = 20
 ZONE_ORDER = ["lr", "rr", "lf", "rf"]
@@ -489,6 +495,21 @@ def _set_login_item(enabled: bool) -> None:
             desktop.unlink()
 
 
+def _set_dock_icon() -> None:
+    """macOS: set the Dock icon at runtime. The packaged .app already has
+    its bundle icon, but this also covers dev runs (python3 cli.py app),
+    which otherwise show the generic Python icon."""
+    if sys.platform != "darwin" or not APP_ICON.exists():
+        return
+    try:
+        from AppKit import NSApplication, NSImage
+        img = NSImage.alloc().initWithContentsOfFile_(str(APP_ICON))
+        if img:
+            NSApplication.sharedApplication().setApplicationIconImage_(img)
+    except Exception:
+        pass
+
+
 def _install_reopen_handler(window) -> bool:
     """macOS: re-show the hidden window when the Dock icon is clicked.
     Returns True only if the handler is actually installed — hide-on-close
@@ -556,10 +577,16 @@ def main():
 
     def post_start():
         time.sleep(0.5)  # let the Cocoa app finish launching
+        _set_dock_icon()
         reopen_ok["v"] = _install_reopen_handler(window)
 
+    # GTK/QT (Linux) take the window icon via start(); no-op elsewhere
+    start_kwargs = {}
+    if sys.platform.startswith("linux") and APP_ICON.exists():
+        start_kwargs["icon"] = str(APP_ICON)
+
     try:
-        webview.start(post_start)
+        webview.start(post_start, **start_kwargs)
     finally:
         ctl.engine.stop()
 

@@ -11,8 +11,9 @@ from pathlib import Path
 ROOT = Path(SPECPATH)
 
 datas = [
-    (str(ROOT / "web" / "dist"), "web/dist"),  # built React UI
-    (str(ROOT / "ui"), "ui"),                  # legacy fallback UI
+    (str(ROOT / "web" / "dist"), "web/dist"),          # built React UI
+    (str(ROOT / "ui"), "ui"),                          # legacy fallback UI
+    (str(ROOT / "assets" / "New" / "bw_512.png"), "assets"),  # runtime icon
 ]
 
 a = Analysis(

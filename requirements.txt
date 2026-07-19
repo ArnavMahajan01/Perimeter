@@ -4,4 +4,9 @@ scipy>=1.13
 scikit-learn>=1.5
 joblib>=1.4
 pynput>=1.7
-pywebview>=5.0
+
+# UI shell — per-platform webview backends
+pywebview>=5.0; sys_platform != "linux"
+pywebview[qt]>=5.0; sys_platform == "linux"
+# Windows backend runtime (pywebview uses WebView2 via pythonnet)
+pythonnet>=3.0; sys_platform == "win32"
