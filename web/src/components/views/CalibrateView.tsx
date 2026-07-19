@@ -59,6 +59,33 @@ export function CalibrateView({ state, act, flashes }: Props) {
           </span>
         )}
       </div>
+
+      {state.trainReport && (
+        <div className="mt-4 max-w-[640px] rounded-lg border bg-card px-4 py-3">
+          <div className="mb-2 text-xs text-muted-foreground">
+            zone separation — how reliably each zone's taps are told apart
+            (from {state.trainReport.timestamp})
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {state.zones.map((z) => {
+              const score = state.trainReport!.per_zone[z.id];
+              if (score === undefined) return null;
+              const pct = Math.round(score * 100);
+              const tone =
+                pct >= 90 ? "text-success" : pct >= 75 ? "text-warning" : "text-destructive";
+              return (
+                <span
+                  key={z.id}
+                  className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs"
+                >
+                  {z.name}
+                  <span className={cn("font-semibold tabular-nums", tone)}>{pct}%</span>
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

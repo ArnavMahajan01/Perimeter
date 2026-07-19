@@ -152,10 +152,36 @@ def train(profile: str = "default", verbose: bool = True) -> dict:
     path = model_path(profile)
     path.parent.mkdir(parents=True, exist_ok=True)
     joblib.dump({"clf": clf, "Xs": Xs, "y": y, "novelty_ref": novelty_ref}, path)
+    _save_train_report(profile, overall, per_zone)
     log(f"Model saved ({overall:.0%} agreement) to {path}")
     return {"ok": True, "agreement": overall, "per_zone": per_zone,
             "weakest": weakest,
             "message": f"Calibrated — {overall:.0%} agreement."}
+
+
+def _train_report_path(profile: str) -> Path:
+    return PROFILES_DIR / profile / "train_report.json"
+
+
+def _save_train_report(profile: str, overall: float, per_zone: dict) -> None:
+    import json
+    import time as _time
+    _train_report_path(profile).write_text(json.dumps({
+        "agreement": overall, "per_zone": per_zone,
+        "timestamp": _time.strftime("%Y-%m-%d %H:%M"),
+    }))
+
+
+def latest_train_report(profile: str = "default"):
+    """Separation scores from the last successful training, or None."""
+    import json
+    p = _train_report_path(profile)
+    if not p.exists():
+        return None
+    try:
+        return json.loads(p.read_text())
+    except (json.JSONDecodeError, OSError):
+        return None
 
 
 def load_model(profile: str = "default"):

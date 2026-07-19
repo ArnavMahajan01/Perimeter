@@ -13,6 +13,10 @@ DEFAULT_CONFIG = {
     "device": None,
     "profile": "default",
     "confidence_threshold": 0.70,
+    "onboarded": False,
+    "launch_at_login": False,
+    # Keep listening in the background when the window is closed
+    "background_mode": True,
     "onset": {
         "trigger_mult": 6.0,
         "abs_floor": 0.004,

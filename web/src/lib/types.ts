@@ -70,6 +70,12 @@ export interface EvalReport {
   confusion: Record<string, Record<string, number>>;
 }
 
+export interface TrainReport {
+  agreement: number;
+  per_zone: Record<string, number>;
+  timestamp: string;
+}
+
 export interface AppState {
   zones: ZoneState[];
   listening: boolean;
@@ -85,6 +91,12 @@ export interface AppState {
   logs: string[];
   flashes: Flash[];
   report: EvalReport | null;
+  trainReport: TrainReport | null;
+  tapsToday: number;
+  onboarded: boolean;
+  launchAtLogin: boolean;
+  backgroundMode: boolean;
+  pauseHotkey: string;
   device: string;
   profile: string;
 }

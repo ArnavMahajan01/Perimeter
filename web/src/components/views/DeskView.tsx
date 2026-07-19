@@ -54,6 +54,31 @@ export function DeskView({ state, act, flashes }: Props) {
         className="min-h-[320px]"
       />
       <div className="mt-2 text-center text-[11px] text-muted-foreground/50">trackpad side</div>
+
+      <div className="mt-4 flex gap-2">
+        <StatChip label="taps today" value={String(state.tapsToday)} />
+        {state.trainReport && (
+          <StatChip
+            label="calibration"
+            value={`${Math.round(state.trainReport.agreement * 100)}%`}
+          />
+        )}
+        {state.report && (
+          <StatChip
+            label="last evaluation"
+            value={`${Math.round(state.report.accuracy * 100)}%`}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function StatChip({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="inline-flex items-baseline gap-2 rounded-lg border bg-card px-3 py-2">
+      <span className="text-[15px] font-semibold tracking-tight tabular-nums">{value}</span>
+      <span className="text-xs text-muted-foreground">{label}</span>
     </div>
   );
 }

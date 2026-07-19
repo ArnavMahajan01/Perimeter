@@ -12,6 +12,9 @@ interface PywebviewApi {
   set_layout(zid: string, x: number, y: number, w: number, h: number): Promise<void>;
   test_action(zid: string): Promise<TestActionResult>;
   browse(zid: string, kind: ActionType): Promise<string | null>;
+  set_onboarded(): Promise<void>;
+  set_background_mode(enabled: boolean): Promise<void>;
+  set_launch_at_login(enabled: boolean): Promise<TestActionResult>;
 }
 
 declare global {

@@ -5,6 +5,7 @@ sessions, listening state) and translates engine events into a UI state
 snapshot. The JS side polls `Api.poll()` ~8x/s and just renders.
 """
 
+import json
 import queue
 import sys
 import time
@@ -12,11 +13,14 @@ from collections import deque
 
 from . import config as config_mod
 from . import model as model_mod
+from .daemon import EVENTS_LOG
 from .dispatch import NEEDS_TARGET, Dispatcher
 from .engine import AudioEngine
 from .evaluation import TAPS_PER_ZONE, EvaluationSession, latest_report
 
-from .paths import RESOURCES
+from .paths import FROZEN, RESOURCES
+
+PAUSE_HOTKEY = "<ctrl>+<alt>+p"
 
 UI_DIST = RESOURCES / "web" / "dist" / "index.html"  # built React app (npm run build)
 UI_HTML = RESOURCES / "ui" / "index.html"            # legacy single-file fallback
@@ -53,7 +57,43 @@ class Controller:
         self._arm_zone = None
         self._arm_kind = None      # "calib" | "eval"
 
+        self.taps_today = self._count_taps_today()
+        self._install_pause_hotkey()
+
         self.engine.start()
+
+    @staticmethod
+    def _count_taps_today() -> int:
+        """Fired taps since local midnight, from the JSONL event log."""
+        if not EVENTS_LOG.exists():
+            return 0
+        midnight = time.mktime(time.localtime()[:3] + (0, 0, 0, 0, 0, -1))
+        n = 0
+        try:
+            with EVENTS_LOG.open() as f:
+                for line in f:
+                    try:
+                        ev = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if ev.get("fired") and ev.get("ts", 0) >= midnight:
+                        n += 1
+        except OSError:
+            return 0
+        return n
+
+    def _install_pause_hotkey(self):
+        """Global pause/resume hotkey. Best-effort — needs Input Monitoring
+        permission on macOS; silently unavailable without it."""
+        try:
+            from pynput import keyboard
+            hk = keyboard.GlobalHotKeys({
+                PAUSE_HOTKEY: lambda: self.events.put(("hotkey_pause",)),
+            })
+            hk.daemon = True
+            hk.start()
+        except Exception:
+            pass
 
     # ---------------------------------------------------------------- pump --
 
@@ -119,9 +159,12 @@ class Controller:
             if fired and label:
                 zone = config_mod.get_zone(self.cfg, label)
                 self.flashes.append({"zone": label, "tone": "ok"})
+                self.taps_today += 1
                 self._log(f"{zone['name']} → {zone['action']['type']} ({conf:.0%})")
             else:
                 self._log(f"ignored — {why}")
+        elif kind == "hotkey_pause":
+            self.toggle_listen()
         elif kind == "eval":
             self._on_eval(*ev[1:])
         elif kind == "error":
@@ -285,6 +328,12 @@ class Controller:
             "logs": list(self.logs),
             "flashes": flashes,
             "report": latest_report(self.engine.profile),
+            "trainReport": model_mod.latest_train_report(self.engine.profile),
+            "tapsToday": self.taps_today,
+            "onboarded": bool(self.cfg.get("onboarded")),
+            "launchAtLogin": bool(self.cfg.get("launch_at_login")),
+            "backgroundMode": bool(self.cfg.get("background_mode", True)),
+            "pauseHotkey": "⌃⌥P",
             "device": self.cfg.get("device") or "system default input",
             "profile": self.engine.profile,
         }
@@ -339,6 +388,27 @@ class Api:
         }
         config_mod.save(self._ctl.cfg)
 
+    def set_onboarded(self):
+        self._ctl.cfg["onboarded"] = True
+        config_mod.save(self._ctl.cfg)
+
+    def set_background_mode(self, enabled):
+        self._ctl.cfg["background_mode"] = bool(enabled)
+        config_mod.save(self._ctl.cfg)
+
+    def set_launch_at_login(self, enabled):
+        """Register/unregister the app to start at login. Only meaningful
+        for the packaged app; in dev it just flips the flag."""
+        enabled = bool(enabled)
+        try:
+            if FROZEN:
+                _set_login_item(enabled)
+            self._ctl.cfg["launch_at_login"] = enabled
+            config_mod.save(self._ctl.cfg)
+            return {"ok": True, "message": ""}
+        except Exception as e:  # noqa: BLE001
+            return {"ok": False, "message": str(e)}
+
     def test_action(self, zid):
         zone = config_mod.get_zone(self._ctl.cfg, zid)
         try:
@@ -370,6 +440,89 @@ class Api:
         return target
 
 
+_LOGIN_LABEL = "com.arnav.perimeter"
+
+
+def _set_login_item(enabled: bool) -> None:
+    """Start-at-login registration for the packaged app, per platform."""
+    exe = sys.executable
+    if sys.platform == "darwin":
+        from pathlib import Path as _P
+        agents = _P.home() / "Library" / "LaunchAgents"
+        plist = agents / f"{_LOGIN_LABEL}.plist"
+        if enabled:
+            agents.mkdir(parents=True, exist_ok=True)
+            plist.write_text(f"""<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+ "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>{_LOGIN_LABEL}</string>
+  <key>ProgramArguments</key><array><string>{exe}</string></array>
+  <key>RunAtLoad</key><true/>
+</dict></plist>
+""")
+        elif plist.exists():
+            plist.unlink()
+    elif sys.platform.startswith("win"):
+        import winreg
+        key = winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER,
+            r"Software\Microsoft\Windows\CurrentVersion\Run",
+            0, winreg.KEY_SET_VALUE)
+        with key:
+            if enabled:
+                winreg.SetValueEx(key, "Perimeter", 0, winreg.REG_SZ, f'"{exe}"')
+            else:
+                try:
+                    winreg.DeleteValue(key, "Perimeter")
+                except FileNotFoundError:
+                    pass
+    else:
+        from pathlib import Path as _P
+        autostart = _P.home() / ".config" / "autostart"
+        desktop = autostart / "perimeter.desktop"
+        if enabled:
+            autostart.mkdir(parents=True, exist_ok=True)
+            desktop.write_text(
+                f"[Desktop Entry]\nType=Application\nName=Perimeter\nExec={exe}\n")
+        elif desktop.exists():
+            desktop.unlink()
+
+
+def _install_reopen_handler(window) -> bool:
+    """macOS: re-show the hidden window when the Dock icon is clicked.
+    Returns True only if the handler is actually installed — hide-on-close
+    must stay disabled otherwise, or the user could never get the window
+    back without force-quitting."""
+    if sys.platform != "darwin":
+        return False
+    try:
+        import objc
+        from AppKit import NSApplication
+
+        delegate = NSApplication.sharedApplication().delegate()
+        if delegate is None:
+            return False
+
+        def reopen(self, sender, has_visible):
+            try:
+                window.show()
+            except Exception:
+                pass
+            return True
+
+        objc.classAddMethod(
+            type(delegate),
+            b"applicationShouldHandleReopen:hasVisibleWindows:",
+            objc.selector(reopen,
+                          selector=b"applicationShouldHandleReopen:hasVisibleWindows:",
+                          signature=b"B@:@B"),
+        )
+        return True
+    except Exception:
+        return False
+
+
 def main():
     import webview
 
@@ -381,14 +534,32 @@ def main():
         source = {"url": UI_DIST.as_uri()}
     else:
         source = {"html": UI_HTML.read_text()}
-    api._window = webview.create_window(
+    window = webview.create_window(
         "Perimeter", js_api=api,
         width=1080, height=700, min_size=(940, 620),
         background_color="#09090b",
         **source,
     )
+    api._window = window
+
+    reopen_ok = {"v": False}
+
+    def on_closing():
+        # Keep listening in the background instead of quitting — but only
+        # when the Dock can bring the window back.
+        if (reopen_ok["v"] and ctl.listening
+                and ctl.cfg.get("background_mode", True)):
+            window.hide()
+            return False
+
+    window.events.closing += on_closing
+
+    def post_start():
+        time.sleep(0.5)  # let the Cocoa app finish launching
+        reopen_ok["v"] = _install_reopen_handler(window)
+
     try:
-        webview.start()
+        webview.start(post_start)
     finally:
         ctl.engine.stop()
 
