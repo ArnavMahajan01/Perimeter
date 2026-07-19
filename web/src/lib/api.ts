@@ -15,6 +15,14 @@ interface PywebviewApi {
   set_onboarded(): Promise<void>;
   set_background_mode(enabled: boolean): Promise<void>;
   set_launch_at_login(enabled: boolean): Promise<TestActionResult>;
+  switch_profile(name: string): Promise<TestActionResult>;
+  create_profile(name: string): Promise<TestActionResult>;
+  delete_profile(name: string): Promise<TestActionResult>;
+  add_override(): Promise<void>;
+  update_override(
+    index: number, app: string, zid: string, kind: ActionType, target: string,
+  ): Promise<void>;
+  remove_override(index: number): Promise<void>;
 }
 
 declare global {

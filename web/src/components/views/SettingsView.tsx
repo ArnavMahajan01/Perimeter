@@ -1,6 +1,17 @@
+import { useState } from "react";
+import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import type { AppState } from "@/lib/types";
 import type { Act } from "@/lib/usePerimeter";
 
@@ -11,12 +22,86 @@ interface Props {
 }
 
 export function SettingsView({ state, act, onRerunOnboarding }: Props) {
+  const [newProfile, setNewProfile] = useState("");
+
+  const createProfile = async () => {
+    const name = newProfile.trim();
+    if (!name) return;
+    const r = await act((api) => api.create_profile(name));
+    if (r) {
+      (r.ok ? toast.success : toast.error)(r.message);
+      if (r.ok) setNewProfile("");
+    }
+  };
+
   return (
     <div>
       <h1 className="text-[19px] font-semibold tracking-tight">Settings</h1>
       <p className="mt-0.5 mb-5 max-w-[640px] text-[13px] text-muted-foreground">
         App behavior. Zone actions and sensitivity live in the Actions tab.
       </p>
+
+      <div className="mb-4 max-w-[560px] rounded-lg border bg-card px-4 py-3.5">
+        <div className="text-[13.5px] font-medium">Desk profiles</div>
+        <div className="mt-0.5 mb-3 max-w-[420px] text-[12.5px] text-muted-foreground">
+          One profile per physical setup (home desk, office, kitchen table).
+          Each keeps its own calibration — switch instead of recalibrating.
+        </div>
+        <div className="flex items-center gap-2">
+          <Select
+            value={state.profile}
+            onValueChange={async (name) => {
+              const r = await act((api) => api.switch_profile(name));
+              if (r && !r.ok) toast.error(r.message);
+            }}
+            disabled={state.locked}
+          >
+            <SelectTrigger className="w-[180px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {state.profiles.map((p) => (
+                <SelectItem key={p} value={p}>
+                  {p}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground"
+            disabled={state.locked || state.profile === "default"}
+            onClick={async () => {
+              const r = await act((api) => api.delete_profile(state.profile));
+              if (r) (r.ok ? toast.success : toast.error)(r.message);
+            }}
+            title="Delete this profile and its calibration"
+          >
+            <Trash2 />
+            Delete
+          </Button>
+        </div>
+        <div className="mt-2 flex items-center gap-2">
+          <Input
+            value={newProfile}
+            onChange={(e) => setNewProfile(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && createProfile()}
+            placeholder="new profile name"
+            className="w-[180px]"
+            disabled={state.locked}
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={state.locked || !newProfile.trim()}
+            onClick={createProfile}
+          >
+            <Plus />
+            Create
+          </Button>
+        </div>
+      </div>
 
       <div className="max-w-[560px] space-y-1 rounded-lg border bg-card px-4">
         <SettingRow

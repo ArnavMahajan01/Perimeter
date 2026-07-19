@@ -99,6 +99,15 @@ export interface AppState {
   pauseHotkey: string;
   device: string;
   profile: string;
+  profiles: string[];
+  frontApp: string;
+  overrides: OverrideRule[];
+}
+
+export interface OverrideRule {
+  app: string;
+  zone: string;
+  action: { type: ActionType; target: string };
 }
 
 export interface TestActionResult {

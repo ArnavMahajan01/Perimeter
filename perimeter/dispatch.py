@@ -43,8 +43,10 @@ class Dispatcher:
     def fire(self, zone: dict) -> bool:
         """Returns True if the action executed (visual counts as executed).
         On failure, self.last_error explains why."""
+        from . import config as config_mod
+
         self.last_error = None
-        action = zone.get("action")
+        action = config_mod.resolve_action(self.cfg, zone)
         if not action:
             self.last_error = "no action assigned"
             return False
@@ -80,7 +82,13 @@ class Dispatcher:
             self._copy(target)
         elif kind == "speak":
             self._speak(target)
-        elif kind in ("url", "file"):
+        elif kind == "url":
+            # Bare domains ("youtube.com") would be treated as file paths
+            # by the OS opener and fail silently.
+            if not target.startswith(("http://", "https://")):
+                target = "https://" + target
+            self._open(target)
+        elif kind == "file":
             self._open(target)
         elif kind == "app":
             self._app(target)

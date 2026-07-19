@@ -17,6 +17,10 @@ DEFAULT_CONFIG = {
     "launch_at_login": False,
     # Keep listening in the background when the window is closed
     "background_mode": True,
+    # Per-app overrides: when the frontmost app matches `app` (case-
+    # insensitive substring), that zone runs `action` instead of its default.
+    # [{"app": "zoom", "zone": "lr", "action": {"type": ..., "target": ...}}]
+    "app_overrides": [],
     "onset": {
         "trigger_mult": 6.0,
         "abs_floor": 0.004,
@@ -108,6 +112,21 @@ def zone_threshold(cfg: dict, zone: dict) -> float:
     area_ratio = (lay["w"] * lay["h"]) / _DEFAULT_AREA
     sens = max(0.0, min(100.0, sens + (area_ratio - 1.0) * 30.0))
     return 0.95 - (sens / 100.0) * 0.35
+
+
+def resolve_action(cfg: dict, zone: dict):
+    """The action this zone should run right now: a per-app override if the
+    frontmost application matches, otherwise the zone's default action."""
+    overrides = cfg.get("app_overrides") or []
+    if overrides:
+        from . import frontapp
+        front = frontapp.frontmost().lower()
+        if front:
+            for rule in overrides:
+                pat = (rule.get("app") or "").strip().lower()
+                if pat and rule.get("zone") == zone["id"] and pat in front:
+                    return rule.get("action") or zone.get("action")
+    return zone.get("action")
 
 
 def get_layout(zone: dict) -> dict:

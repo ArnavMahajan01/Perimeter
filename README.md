@@ -67,7 +67,7 @@ cd web && npm install && npm run build
 
 If `web/dist` doesn't exist, the app falls back to the legacy single-file
 interface in `ui/index.html` (and to a basic Tk window if pywebview is
-missing). Five sections in the sidebar:
+missing). Six sections in the sidebar:
 
 - **Desk** — the live view. START listening; tapped zones light up and run
   their actions. Zone tiles show the assigned action.
@@ -79,12 +79,38 @@ missing). Five sections in the sidebar:
   (talk and type while armed) so speech and typing never fire actions.
 - **Actions** — one row per zone: `visual`, `sound`, `copy`, `speak`, `url`,
   `app`, `file`, `hotkey`, `shell`, or `screenshot`, each with an inline
-  Test button. Changes save as they're made.
+  Test button. Changes save as they're made. Below the zone rows live the
+  per-app overrides (see next section).
 - **Evaluate** — held-out accuracy test: 15 fresh taps per zone, armed one
   zone at a time. Reports per-zone accuracy, a confusion matrix, and median
   latency; targets are ≥80% accuracy and <200 ms. Saved as JSON + CSV and
   restored on relaunch. Rejected taps count as incorrect.
 - **Diagnostics** — live input level and a rolling classification log.
+- **Settings** — desk profiles, launch at login, background listening,
+  pause hotkey.
+
+## Per-app overrides
+
+The same tap can do different things depending on which app you're using.
+Each zone has a default action, and an override rule says: *if this app is
+frontmost, this zone runs a different action instead.*
+
+Example — Left Rear's default opens Gmail, plus one override rule
+(`app: zoom → Left Rear → hotkey: mute`):
+
+| You're using       | Tap Left Rear does |
+|--------------------|--------------------|
+| Browser, Finder, … | opens Gmail        |
+| Zoom               | mutes the call     |
+
+The moment you leave Zoom, the same spot goes back to Gmail. Nothing to
+reconfigure — the desk adapts to what's on screen.
+
+Rules are managed at the bottom of the **Actions** tab. App matching is a
+case-insensitive "contains": `zoom` matches *zoom.us*, `chrome` matches
+*Google Chrome*. The tab shows the current frontmost app so you know
+exactly what to type. If several rules match, the first one wins; zones
+without a matching rule use their default action.
 
 ## Build the standalone app
 

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FolderOpen, Play } from "lucide-react";
+import { FolderOpen, Play, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,6 +24,7 @@ import {
   NEEDS_TARGET,
   type ActionType,
   type AppState,
+  type OverrideRule,
   type ZoneState,
 } from "@/lib/types";
 import type { Act } from "@/lib/usePerimeter";
@@ -57,6 +58,128 @@ export function ActionsView({ state, act }: Props) {
           })}
         </div>
       ))}
+
+      <div className="mt-6 mb-2 flex items-baseline justify-between">
+        <div className="text-[11px] font-semibold tracking-[0.08em] text-muted-foreground/60 uppercase">
+          Per-app overrides
+        </div>
+        {state.frontApp && (
+          <span className="text-xs text-muted-foreground/60">
+            frontmost app: {state.frontApp}
+          </span>
+        )}
+      </div>
+      <p className="mb-2 max-w-[640px] text-[12.5px] text-muted-foreground">
+        When the named app is in front, the zone runs this action instead of its
+        default. App matching is a case-insensitive contains ("zoom" matches
+        zoom.us).
+      </p>
+      {state.overrides.map((rule, i) => (
+        <OverrideRow
+          key={i}
+          index={i}
+          rule={rule}
+          zones={state.zones}
+          act={act}
+        />
+      ))}
+      <Button
+        variant="outline"
+        size="sm"
+        className="mt-1"
+        onClick={() => act((api) => api.add_override())}
+      >
+        <Plus />
+        Add override
+      </Button>
+    </div>
+  );
+}
+
+function OverrideRow({
+  index,
+  rule,
+  zones,
+  act,
+}: {
+  index: number;
+  rule: OverrideRule;
+  zones: ZoneState[];
+  act: Act;
+}) {
+  // Focus-guarded drafts so the poll can't overwrite in-progress typing
+  const [appDraft, setAppDraft] = useState<string | null>(null);
+  const [targetDraft, setTargetDraft] = useState<string | null>(null);
+  const app = appDraft ?? rule.app;
+  const target = targetDraft ?? rule.action.target;
+  const needsTarget = NEEDS_TARGET.has(rule.action.type);
+
+  const save = (a: string, zid: string, kind: ActionType, t: string) =>
+    act((api) => api.update_override(index, a, zid, kind, t));
+
+  return (
+    <div className="mb-2 flex items-center gap-3 rounded-lg border border-dashed bg-card/60 px-4 py-2.5">
+      <Input
+        value={app}
+        placeholder="app name (e.g. zoom)"
+        className="w-[150px] flex-none"
+        onFocus={() => setAppDraft(rule.app)}
+        onBlur={() => setAppDraft(null)}
+        onChange={(e) => {
+          setAppDraft(e.target.value);
+          save(e.target.value, rule.zone, rule.action.type, target);
+        }}
+      />
+      <Select
+        value={rule.zone}
+        onValueChange={(zid) => save(app, zid, rule.action.type, target)}
+      >
+        <SelectTrigger className="w-[130px] flex-none">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {zones.map((z) => (
+            <SelectItem key={z.id} value={z.id}>
+              {z.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Select
+        value={rule.action.type}
+        onValueChange={(v) => save(app, rule.zone, v as ActionType, target)}
+      >
+        <SelectTrigger className="w-[130px] flex-none">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {ACTION_TYPES.map((t) => (
+            <SelectItem key={t} value={t}>
+              {t}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Input
+        value={needsTarget ? target : ""}
+        disabled={!needsTarget}
+        placeholder={ACTION_HINTS[rule.action.type]}
+        className="flex-1"
+        onFocus={() => setTargetDraft(rule.action.target)}
+        onBlur={() => setTargetDraft(null)}
+        onChange={(e) => {
+          setTargetDraft(e.target.value);
+          save(app, rule.zone, rule.action.type, e.target.value);
+        }}
+      />
+      <Button
+        variant="ghost"
+        size="sm"
+        className="flex-none text-muted-foreground"
+        onClick={() => act((api) => api.remove_override(index))}
+      >
+        <Trash2 />
+      </Button>
     </div>
   );
 }

@@ -12,6 +12,7 @@ import time
 from collections import deque
 
 from . import config as config_mod
+from . import frontapp
 from . import model as model_mod
 from .daemon import EVENTS_LOG
 from .dispatch import NEEDS_TARGET, Dispatcher
@@ -164,9 +165,10 @@ class Controller:
             _, label, conf, fired, why = ev
             if fired and label:
                 zone = config_mod.get_zone(self.cfg, label)
+                fired_action = config_mod.resolve_action(self.cfg, zone) or {}
                 self.flashes.append({"zone": label, "tone": "ok"})
                 self.taps_today += 1
-                self._log(f"{zone['name']} → {zone['action']['type']} ({conf:.0%})")
+                self._log(f"{zone['name']} → {fired_action.get('type', '?')} ({conf:.0%})")
             else:
                 self._log(f"ignored — {why}")
         elif kind == "hotkey_pause":
@@ -342,6 +344,10 @@ class Controller:
             "pauseHotkey": "⌃⌥P",
             "device": self.cfg.get("device") or "system default input",
             "profile": self.engine.profile,
+            "profiles": sorted(set(model_mod.list_profiles())
+                               | {"default", self.engine.profile}),
+            "frontApp": frontapp.frontmost(),
+            "overrides": self.cfg.get("app_overrides") or [],
         }
 
 
@@ -393,6 +399,87 @@ class Api:
             "w": max(0.08, min(1.0, float(w))), "h": max(0.08, min(1.0, float(h))),
         }
         config_mod.save(self._ctl.cfg)
+
+    # ---- per-app overrides ------------------------------------------------
+    # When the frontmost app matches a rule, that zone runs the rule's
+    # action instead of its default.
+
+    def add_override(self):
+        self._ctl.cfg.setdefault("app_overrides", []).append(
+            {"app": "", "zone": "lr", "action": {"type": "visual", "target": ""}})
+        config_mod.save(self._ctl.cfg)
+
+    def update_override(self, index, app, zid, kind, target):
+        rules = self._ctl.cfg.get("app_overrides") or []
+        if not 0 <= int(index) < len(rules):
+            return
+        rules[int(index)] = {
+            "app": (app or "").strip(),
+            "zone": zid,
+            "action": {"type": kind, "target": (target or "").strip()},
+        }
+        config_mod.save(self._ctl.cfg)
+
+    def remove_override(self, index):
+        rules = self._ctl.cfg.get("app_overrides") or []
+        if 0 <= int(index) < len(rules):
+            rules.pop(int(index))
+            config_mod.save(self._ctl.cfg)
+
+    # ---- desk profiles ----------------------------------------------------
+    # One profile = one physical setup (laptop + desk + position). Samples,
+    # model, and evaluation reports are all stored per profile.
+
+    @staticmethod
+    def _clean_profile_name(name):
+        import re
+        name = (name or "").strip()
+        return name if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9 _-]{0,31}", name) else None
+
+    def switch_profile(self, name):
+        ctl = self._ctl
+        if ctl.calibrating or ctl.eval_session:
+            return {"ok": False, "message": "Finish or cancel the current session first."}
+        name = self._clean_profile_name(name)
+        if not name:
+            return {"ok": False, "message": "Invalid profile name."}
+        if ctl.listening:
+            ctl.toggle_listen()  # pause; the new profile may not be calibrated
+        ctl.cfg["profile"] = name
+        config_mod.save(ctl.cfg)
+        ctl.engine.set_profile(name)
+        ctl.calib_live = {}
+        ctl.eval_live = {}
+        ctl.train_msg = None
+        calibrated = model_mod.model_path(name).exists()
+        ctl.status = (f"Profile '{name}'" +
+                      ("" if calibrated else " — not calibrated yet"),
+                      "muted" if calibrated else "warn")
+        return {"ok": True, "message": f"Switched to '{name}'."}
+
+    def create_profile(self, name):
+        clean = self._clean_profile_name(name)
+        if not clean:
+            return {"ok": False, "message":
+                    "Use letters, numbers, spaces, - or _ (max 32 chars)."}
+        if clean in model_mod.list_profiles():
+            return {"ok": False, "message": f"Profile '{clean}' already exists."}
+        model_mod.samples_dir(clean).mkdir(parents=True, exist_ok=True)
+        return self.switch_profile(clean)
+
+    def delete_profile(self, name):
+        import shutil
+        ctl = self._ctl
+        if name == "default":
+            return {"ok": False, "message": "The default profile can't be deleted."}
+        if name not in model_mod.list_profiles():
+            return {"ok": False, "message": f"No profile named '{name}'."}
+        if name == ctl.engine.profile:
+            r = self.switch_profile("default")
+            if not r["ok"]:
+                return r
+        shutil.rmtree(model_mod.PROFILES_DIR / name, ignore_errors=True)
+        return {"ok": True, "message": f"Deleted '{name}'."}
 
     def set_onboarded(self):
         self._ctl.cfg["onboarded"] = True
