@@ -18,11 +18,14 @@ interface PywebviewApi {
   switch_profile(name: string): Promise<TestActionResult>;
   create_profile(name: string): Promise<TestActionResult>;
   delete_profile(name: string): Promise<TestActionResult>;
-  add_override(): Promise<void>;
+  add_override(): Promise<TestActionResult>;
   update_override(
     index: number, app: string, zid: string, kind: ActionType, target: string,
   ): Promise<void>;
   remove_override(index: number): Promise<void>;
+  calib_zone(zid: string): Promise<void>;
+  activate_license(key: string): Promise<TestActionResult>;
+  deactivate_license(): Promise<TestActionResult>;
 }
 
 declare global {

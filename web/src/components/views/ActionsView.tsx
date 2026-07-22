@@ -87,10 +87,18 @@ export function ActionsView({ state, act }: Props) {
         variant="outline"
         size="sm"
         className="mt-1"
-        onClick={() => act((api) => api.add_override())}
+        onClick={async () => {
+          const r = await act((api) => api.add_override());
+          if (r && !r.ok) toast.error(r.message);
+        }}
       >
         <Plus />
         Add override
+        {!state.pro && (
+          <span className="text-muted-foreground/60">
+            · {state.overrides.length}/{state.freeLimits.overrides} free
+          </span>
+        )}
       </Button>
     </div>
   );

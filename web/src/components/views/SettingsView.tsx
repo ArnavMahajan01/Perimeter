@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { BadgeCheck, Plus, Sparkles, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,6 +23,7 @@ interface Props {
 
 export function SettingsView({ state, act, onRerunOnboarding }: Props) {
   const [newProfile, setNewProfile] = useState("");
+  const [licenseKey, setLicenseKey] = useState("");
 
   const createProfile = async () => {
     const name = newProfile.trim();
@@ -40,6 +41,75 @@ export function SettingsView({ state, act, onRerunOnboarding }: Props) {
       <p className="mt-0.5 mb-5 max-w-[640px] text-[13px] text-muted-foreground">
         App behavior. Zone actions and sensitivity live in the Actions tab.
       </p>
+
+      <div className="mb-4 max-w-[560px] rounded-lg border bg-card px-4 py-3.5">
+        <div className="flex items-center gap-2 text-[13.5px] font-medium">
+          {state.pro ? (
+            <BadgeCheck className="size-4 text-success" />
+          ) : (
+            <Sparkles className="size-4 text-muted-foreground" />
+          )}
+          Perimeter Pro
+        </div>
+        {state.pro ? (
+          <>
+            <div className="mt-0.5 mb-3 text-[12.5px] text-muted-foreground">
+              Active — license {state.licenseMasked}. Unlimited profiles and
+              per-app overrides on this device.
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={async () => {
+                const r = await act((api) => api.deactivate_license());
+                if (r) (r.ok ? toast.success : toast.error)(r.message);
+              }}
+            >
+              Deactivate on this device
+            </Button>
+          </>
+        ) : (
+          <>
+            <div className="mt-0.5 mb-3 max-w-[420px] text-[12.5px] text-muted-foreground">
+              Free version: {state.freeLimits.profiles} desk profiles and{" "}
+              {state.freeLimits.overrides} per-app overrides.{" "}
+              <a
+                href={state.proUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-foreground underline underline-offset-4"
+              >
+                Get Pro
+              </a>{" "}
+              to remove the limits and support development.
+            </div>
+            <div className="flex items-center gap-2">
+              <Input
+                value={licenseKey}
+                onChange={(e) => setLicenseKey(e.target.value)}
+                placeholder="license key"
+                className="w-[280px] font-mono text-[12.5px]"
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!licenseKey.trim()}
+                onClick={async () => {
+                  const r = await act((api) =>
+                    api.activate_license(licenseKey.trim()),
+                  );
+                  if (r) {
+                    (r.ok ? toast.success : toast.error)(r.message);
+                    if (r.ok) setLicenseKey("");
+                  }
+                }}
+              >
+                Activate
+              </Button>
+            </div>
+          </>
+        )}
+      </div>
 
       <div className="mb-4 max-w-[560px] rounded-lg border bg-card px-4 py-3.5">
         <div className="text-[13.5px] font-medium">Desk profiles</div>

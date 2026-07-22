@@ -1,5 +1,13 @@
-import { Plus } from "lucide-react";
+import { useState } from "react";
+import { Plus, Target } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { PerimeterMap } from "@/components/PerimeterMap";
 import { cn } from "@/lib/utils";
 import type { AppState, Tone } from "@/lib/types";
@@ -20,6 +28,15 @@ interface Props {
 }
 
 export function CalibrateView({ state, act, flashes }: Props) {
+  // Zone with the lowest separation score is the default top-up target
+  const weakest = state.trainReport
+    ? Object.entries(state.trainReport.per_zone)
+        .filter(([z]) => z !== "_negative")
+        .sort(([, a], [, b]) => a - b)[0]?.[0]
+    : undefined;
+  const [topupZone, setTopupZone] = useState<string | null>(null);
+  const busy = state.locked || state.listening;
+
   return (
     <div>
       <div className="flex items-center justify-between">
@@ -42,17 +59,52 @@ export function CalibrateView({ state, act, flashes }: Props) {
       <div className="mt-2 text-center text-[11px] text-muted-foreground/50">trackpad side</div>
 
       <div className="mt-4 flex items-center justify-between">
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={state.locked || state.listening}
-          onClick={() => act((api) => api.calib_negative())}
-        >
-          <Plus />
-          {state.negLive
-            ? state.negLive
-            : `Noise rejection${state.negativeCount ? ` · ${state.negativeCount} samples` : ""}`}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={busy}
+            onClick={() => act((api) => api.calib_negative())}
+          >
+            <Plus />
+            {state.negLive
+              ? state.negLive
+              : `Noise rejection${state.negativeCount ? ` · ${state.negativeCount} samples` : ""}`}
+          </Button>
+          {state.calibrated && (
+            <>
+              <Select
+                value={topupZone ?? weakest ?? "lr"}
+                onValueChange={setTopupZone}
+                disabled={busy}
+              >
+                <SelectTrigger className="h-8 w-[130px] text-[13px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {state.zones.map((z) => (
+                    <SelectItem key={z.id} value={z.id}>
+                      {z.name}
+                      {z.id === weakest ? " (weakest)" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={busy}
+                onClick={() =>
+                  act((api) => api.calib_zone(topupZone ?? weakest ?? "lr"))
+                }
+                title="Add 10 more taps to this zone only — no need to redo the rest"
+              >
+                <Target />
+                Add 10 taps
+              </Button>
+            </>
+          )}
+        </div>
         {state.trainMsg && (
           <span className={cn("text-[13px]", TONE_TEXT[state.trainMsg.tone])}>
             {state.trainMsg.text}

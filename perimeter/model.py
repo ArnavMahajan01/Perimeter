@@ -151,7 +151,8 @@ def train(profile: str = "default", verbose: bool = True) -> dict:
 
     path = model_path(profile)
     path.parent.mkdir(parents=True, exist_ok=True)
-    joblib.dump({"clf": clf, "Xs": Xs, "y": y, "novelty_ref": novelty_ref}, path)
+    joblib.dump({"clf": clf, "Xs": Xs, "y": y, "novelty_ref": novelty_ref,
+                 "feature_version": features.VERSION}, path)
     _save_train_report(profile, overall, per_zone)
     log(f"Model saved ({overall:.0%} agreement) to {path}")
     return {"ok": True, "agreement": overall, "per_zone": per_zone,
@@ -188,7 +189,25 @@ def load_model(profile: str = "default"):
     path = model_path(profile)
     if not path.exists():
         raise FileNotFoundError(f"Profile '{profile}' is not calibrated yet.")
-    return joblib.load(path)
+    bundle = joblib.load(path)
+    if bundle.get("feature_version") != features.VERSION:
+        # Never mix features across versions; retraining from the saved
+        # wavs restores it without retapping.
+        raise FileNotFoundError(
+            "Model was built with an older version — retraining…")
+    return bundle
+
+
+def model_is_stale(profile: str = "default") -> bool:
+    """True if a model exists but was trained with an older feature
+    version (samples are kept, so a retrain fixes it without retapping)."""
+    path = model_path(profile)
+    if not path.exists():
+        return False
+    try:
+        return joblib.load(path).get("feature_version") != features.VERSION
+    except Exception:
+        return True
 
 
 def predict(bundle, vec):

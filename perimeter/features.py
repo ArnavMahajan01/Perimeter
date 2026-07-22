@@ -8,7 +8,11 @@ over time.
 import numpy as np
 from scipy.fftpack import dct
 
-from . import SAMPLE_RATE, WINDOW_LEN
+from . import SAMPLE_RATE, WINDOW_LEN, WINDOW_PRE
+
+# Bumped whenever extraction changes incompatibly; models trained with a
+# different version must be retrained (from the saved wavs — no retapping).
+VERSION = 2  # v2: peak alignment
 
 N_FFT = 1024
 HOP = 256
@@ -16,6 +20,9 @@ N_MELS = 64
 N_MFCC = 20
 FMIN = 50.0
 FMAX = 8000.0
+
+# Where the tap's absolute peak is anchored inside the window (samples).
+PEAK_POS = int(WINDOW_PRE * SAMPLE_RATE)
 
 FEATURE_DIM = None  # set on first extract() call, asserted thereafter
 
@@ -70,6 +77,26 @@ def _delta(mat: np.ndarray, width: int = 9) -> np.ndarray:
     return out
 
 
+def _align_to_peak(window: np.ndarray) -> np.ndarray:
+    """Shift the window so its absolute peak sits at PEAK_POS.
+
+    The onset detector triggers on ~12 ms audio blocks, so where the tap
+    lands inside the window jitters by up to a block — the same tap can
+    produce visibly different features. Anchoring on the energy peak makes
+    windows comparable across taps (and across calibration vs. live use).
+    """
+    peak = int(np.argmax(np.abs(window)))
+    shift = PEAK_POS - peak
+    if shift == 0:
+        return window
+    out = np.zeros_like(window)
+    if shift > 0:
+        out[shift:] = window[:-shift]
+    else:
+        out[:shift] = window[-shift:]
+    return out
+
+
 def extract(window: np.ndarray) -> np.ndarray:
     global FEATURE_DIM, _mel_fb
 
@@ -78,6 +105,8 @@ def extract(window: np.ndarray) -> np.ndarray:
         window = np.pad(window, (0, WINDOW_LEN - len(window)))
     elif len(window) > WINDOW_LEN:
         window = window[:WINDOW_LEN]
+
+    window = _align_to_peak(window)
 
     # Remove tap-force variance; loudness must not be a feature.
     window = window / (np.max(np.abs(window)) + 1e-9)

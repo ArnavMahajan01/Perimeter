@@ -102,6 +102,10 @@ export interface AppState {
   profiles: string[];
   frontApp: string;
   overrides: OverrideRule[];
+  pro: boolean;
+  licenseMasked: string;
+  proUrl: string;
+  freeLimits: { profiles: number; overrides: number };
 }
 
 export interface OverrideRule {

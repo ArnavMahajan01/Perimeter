@@ -8,11 +8,13 @@ snapshot. The JS side polls `Api.poll()` ~8x/s and just renders.
 import json
 import queue
 import sys
+import threading
 import time
 from collections import deque
 
 from . import config as config_mod
 from . import frontapp
+from . import license as license_mod
 from . import model as model_mod
 from .daemon import EVENTS_LOG
 from .dispatch import NEEDS_TARGET, Dispatcher
@@ -36,6 +38,10 @@ CALIB_TAPS = 10
 NEG_TAPS = 20
 ZONE_ORDER = ["lr", "rr", "lf", "rf"]
 ARM_DELAY_S = 0.9
+
+# Free-tier limits; Perimeter Pro removes them.
+FREE_MAX_PROFILES = 2
+FREE_MAX_OVERRIDES = 2
 
 
 class Controller:
@@ -63,11 +69,37 @@ class Controller:
         self._arm_at = None
         self._arm_zone = None
         self._arm_kind = None      # "calib" | "eval"
+        self._arm_target = None    # explicit sample target (top-up), or None
 
         self.taps_today = self._count_taps_today()
         self._install_pause_hotkey()
 
+        # Feature extraction changed? Retrain from the saved wavs — no
+        # retapping needed, but the old model must not be used.
+        if model_mod.model_is_stale(self.engine.profile):
+            self.status = ("Updating model for this version…", "muted")
+            self.engine.train_async()
+
+        # Refresh the Pro license in the background (offline grace applies)
+        self._revalidate_license_async()
+
         self.engine.start()
+
+    def _revalidate_license_async(self):
+        lic = self.cfg.get("license")
+        if not lic or not lic.get("key"):
+            return
+
+        def job():
+            updated = license_mod.validate(lic)
+            if updated != lic:
+                self.cfg["license"] = updated
+                config_mod.save(self.cfg)
+        threading.Thread(target=job, daemon=True).start()
+
+    @property
+    def pro(self) -> bool:
+        return license_mod.is_pro(self.cfg.get("license"))
 
     @staticmethod
     def _count_taps_today() -> int:
@@ -107,10 +139,12 @@ class Controller:
     def pump(self):
         now = time.time()
         if self._arm_at and now >= self._arm_at:
-            zone, kind = self._arm_zone, self._arm_kind
-            self._arm_at = self._arm_zone = self._arm_kind = None
+            zone, kind, target = self._arm_zone, self._arm_kind, self._arm_target
+            self._arm_at = self._arm_zone = self._arm_kind = self._arm_target = None
             if kind == "calib" and self.calibrating:
-                self.engine.arm_calibration(zone, NEG_TAPS if zone == "_negative" else CALIB_TAPS)
+                if target is None:
+                    target = NEG_TAPS if zone == "_negative" else CALIB_TAPS
+                self.engine.arm_calibration(zone, target)
             elif kind == "eval" and self.eval_session:
                 if not self.engine.arm_evaluation(zone):
                     self._eval_cancel()
@@ -134,7 +168,9 @@ class Controller:
                 else (0.85 * self.meter + 0.15 * rms)
         elif kind == "calib":
             _, zone, count, ok, guidance = ev
-            target = NEG_TAPS if zone == "_negative" else CALIB_TAPS
+            # engine.calib_target is authoritative — top-up sessions have a
+            # higher target than a fresh CALIB_TAPS pass
+            target = self.engine.calib_target
             if zone == "_negative":
                 self.neg_live = f"capturing — {count}/{target}"
             else:
@@ -227,6 +263,26 @@ class Controller:
                        "around the area.", "ok")
         self.calib_live[zid] = {"text": f"armed — 0/{CALIB_TAPS}", "tone": "ok"}
         self._arm_at, self._arm_zone, self._arm_kind = time.time() + ARM_DELAY_S, zid, "calib"
+
+    def calib_zone(self, zid):
+        """Top-up: add CALIB_TAPS more samples to one zone without wiping
+        anything, then retrain. The cheap way to fix a weak zone."""
+        if self.calibrating or self.eval_session or self.listening:
+            return
+        zone = config_mod.get_zone(self.cfg, zid)
+        if zone is None:
+            return
+        counts = model_mod.sample_counts(self.engine.profile)
+        target = counts.get(zid, 0) + CALIB_TAPS
+        self.calibrating = True
+        self.train_msg = None
+        self.calib_queue = []
+        self.status = (f"Armed: {zone['name']} — add {CALIB_TAPS} taps, spread "
+                       "around the area.", "ok")
+        self.calib_live[zid] = {"text": f"armed — {counts.get(zid, 0)}/{target}",
+                                "tone": "ok"}
+        self._arm_at, self._arm_zone, self._arm_kind, self._arm_target = \
+            time.time() + ARM_DELAY_S, zid, "calib", target
 
     def calib_negative(self):
         if self.calibrating or self.eval_session or self.listening:
@@ -348,6 +404,11 @@ class Controller:
                                | {"default", self.engine.profile}),
             "frontApp": frontapp.frontmost(),
             "overrides": self.cfg.get("app_overrides") or [],
+            "pro": self.pro,
+            "licenseMasked": license_mod.masked_key(self.cfg.get("license")),
+            "proUrl": license_mod.PRO_URL,
+            "freeLimits": {"profiles": FREE_MAX_PROFILES,
+                           "overrides": FREE_MAX_OVERRIDES},
         }
 
 
@@ -405,9 +466,15 @@ class Api:
     # action instead of its default.
 
     def add_override(self):
-        self._ctl.cfg.setdefault("app_overrides", []).append(
+        rules = self._ctl.cfg.setdefault("app_overrides", [])
+        if not self._ctl.pro and len(rules) >= FREE_MAX_OVERRIDES:
+            return {"ok": False, "message":
+                    f"Free version allows {FREE_MAX_OVERRIDES} overrides — "
+                    "Perimeter Pro removes the limit."}
+        rules.append(
             {"app": "", "zone": "lr", "action": {"type": "visual", "target": ""}})
         config_mod.save(self._ctl.cfg)
+        return {"ok": True, "message": ""}
 
     def update_override(self, index, app, zid, kind, target):
         rules = self._ctl.cfg.get("app_overrides") or []
@@ -458,11 +525,16 @@ class Api:
         return {"ok": True, "message": f"Switched to '{name}'."}
 
     def create_profile(self, name):
+        existing = set(model_mod.list_profiles()) | {"default"}
+        if not self._ctl.pro and len(existing) >= FREE_MAX_PROFILES:
+            return {"ok": False, "message":
+                    f"Free version allows {FREE_MAX_PROFILES} desk profiles — "
+                    "Perimeter Pro removes the limit."}
         clean = self._clean_profile_name(name)
         if not clean:
             return {"ok": False, "message":
                     "Use letters, numbers, spaces, - or _ (max 32 chars)."}
-        if clean in model_mod.list_profiles():
+        if clean in existing:
             return {"ok": False, "message": f"Profile '{clean}' already exists."}
         model_mod.samples_dir(clean).mkdir(parents=True, exist_ok=True)
         return self.switch_profile(clean)
@@ -480,6 +552,26 @@ class Api:
                 return r
         shutil.rmtree(model_mod.PROFILES_DIR / name, ignore_errors=True)
         return {"ok": True, "message": f"Deleted '{name}'."}
+
+    # ---- Pro license ------------------------------------------------------
+
+    def activate_license(self, key):
+        try:
+            lic = license_mod.activate(key)
+        except ValueError as e:
+            return {"ok": False, "message": str(e)}
+        self._ctl.cfg["license"] = lic
+        config_mod.save(self._ctl.cfg)
+        return {"ok": True, "message": "Perimeter Pro activated — thank you!"}
+
+    def deactivate_license(self):
+        license_mod.deactivate(self._ctl.cfg.get("license"))
+        self._ctl.cfg["license"] = {}
+        config_mod.save(self._ctl.cfg)
+        return {"ok": True, "message": "License deactivated on this device."}
+
+    def calib_zone(self, zid):
+        self._ctl.calib_zone(zid)
 
     def set_onboarded(self):
         self._ctl.cfg["onboarded"] = True
